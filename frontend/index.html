@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="CartridgeLab — Insert your trading strategy. Play the backtest." />
+  <title>CartridgeLab — Strategy Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Three.js canvas mounts here -->
+    <canvas id="console-canvas"></canvas>
+
+    <!-- File drop overlay -->
+    <div id="drop-zone" class="drop-zone">
+      <div class="drop-hint">
+        <span class="drop-icon">📼</span>
+        <p class="drop-text">DROP CARTRIDGE HERE</p>
+        <p class="drop-subtext">.py &nbsp;|&nbsp; .pine &nbsp;|&nbsp; .mq4</p>
+      </div>
+    </div>
+
+    <!-- HUD overlay -->
+    <div id="hud" class="hud hidden">
+      <div class="hud-panel">
+        <div class="hud-metric" id="hud-sharpe">
+          <span class="hud-label">SHARPE</span>
+          <span class="hud-value" id="val-sharpe">—</span>
+        </div>
+        <div class="hud-metric" id="hud-return">
+          <span class="hud-label">RETURN</span>
+          <span class="hud-value" id="val-return">—</span>
+        </div>
+        <div class="hud-metric" id="hud-drawdown">
+          <span class="hud-label">MAX DD</span>
+          <span class="hud-value" id="val-drawdown">—</span>
+        </div>
+        <div class="hud-metric" id="hud-winrate">
+          <span class="hud-label">WIN RATE</span>
+          <span class="hud-value" id="val-winrate">—</span>
+        </div>
+        <div class="hud-metric" id="hud-trades">
+          <span class="hud-label">TRADES</span>
+          <span class="hud-value" id="val-trades">—</span>
+        </div>
+      </div>
+      <div id="achievements" class="achievements"></div>
+    </div>
+
+    <!-- Strategy selector panel -->
+    <div id="cartridge-menu" class="cartridge-menu">
+      <div class="menu-header">
+        <span class="menu-title">◄ CARTRIDGE LIBRARY ►</span>
+        <span class="menu-blink">INSERT FILE OR SELECT BELOW</span>
+      </div>
+      <div id="cartridge-list" class="cartridge-list"></div>
+    </div>
+
+    <!-- Run config panel -->
+    <div id="run-config" class="run-config hidden">
+      <div class="config-title">▶ CONFIGURE RUN</div>
+      <label>TICKER <input id="cfg-ticker" type="text" value="SPY" maxlength="10" /></label>
+      <label>START <input id="cfg-start" type="text" value="2020-01-01" /></label>
+      <label>END <input id="cfg-end" type="text" value="2023-12-31" /></label>
+      <label>CAPITAL <input id="cfg-cash" type="number" value="100000" step="10000" /></label>
+      <button id="btn-run" class="btn-run">► PRESS PLAY</button>
+    </div>
+
+    <!-- Loading screen -->
+    <div id="loading-screen" class="loading-screen hidden">
+      <div class="loading-inner">
+        <div class="loading-title">RUNNING BACKTEST</div>
+        <div class="loading-bar-wrap"><div id="loading-bar" class="loading-bar"></div></div>
+        <div class="loading-sub" id="loading-sub">Initializing Cerebro...</div>
+      </div>
+    </div>
+
+    <!-- Strategy name badge -->
+    <div id="strategy-badge" class="strategy-badge hidden"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

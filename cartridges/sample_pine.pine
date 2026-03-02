@@ -1,0 +1,33 @@
+//@version=5
+// CartridgeLab Sample PineScript Cartridge
+// EMA(9/21) crossover with RSI(14) confirmation filter
+// Tests the CartridgeLab PineScript adapter (pinescript_adapter.py)
+
+strategy("EMA Cross + RSI Filter", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ─── Parameters ───────────────────────────────────────────────────────────────
+fast_period  = input.int(9,  title="Fast EMA Period", minval=2, maxval=50)
+slow_period  = input.int(21, title="Slow EMA Period", minval=5, maxval=200)
+rsi_period   = input.int(14, title="RSI Period")
+rsi_ob       = input.int(70, title="RSI Overbought")
+rsi_os       = input.int(30, title="RSI Oversold")
+
+// ─── Indicators ───────────────────────────────────────────────────────────────
+fast_ema = ta.ema(close, fast_period)
+slow_ema = ta.ema(close, slow_period)
+rsi      = ta.rsi(close, rsi_period)
+
+// ─── Signals ──────────────────────────────────────────────────────────────────
+bullish_cross = ta.crossover(fast_ema, slow_ema)
+bearish_cross = ta.crossunder(fast_ema, slow_ema)
+
+// ─── Entry/Exit ───────────────────────────────────────────────────────────────
+if bullish_cross and rsi < rsi_ob
+    strategy.entry("Long", strategy.long)
+
+if bearish_cross or rsi > rsi_ob
+    strategy.close("Long")
+
+// ─── Plots ────────────────────────────────────────────────────────────────────
+plot(fast_ema, color=color.cyan,   linewidth=1, title="Fast EMA")
+plot(slow_ema, color=color.purple, linewidth=1, title="Slow EMA")

@@ -1,0 +1,173 @@
+# CartridgeLab
+
+> A trading strategy backtesting platform where your strategy files ARE the game cartridges — fusing Jim Simons' quantitative rigor with Nintendo's lateral-thinking game design philosophy.
+
+## Project Overview
+
+**Tech Stack**: Three.js (WebGL), Vite, Python/Flask, Backtrader, yfinance, GSAP, Web Audio API
+**Status**: Active Development — v0.1.0
+**Location**: `E:\Sterling Storage\CartridgeLab`
+**Purpose**: A revolutionary backtesting UX for traders using Python, PineScript, and MQL strategies. The backtesting engine is the console. Your strategy file is the cartridge. Insert it and play.
+
+---
+
+## Core Documentation
+
+### README.md
+Project overview, setup, quick start. Read first. Covers prerequisites, how to run backend and frontend dev servers, cartridge format guide.
+
+### memory.md
+Project history and founding context. Contains the design DNA (Jim Simons, Gunpei Yokoi, Miyamoto, Sakamoto). Updated after every significant milestone.
+
+### decisions.md
+5 founding ADRs: Console-Cartridge paradigm (ADR-001), Backtrader engine (ADR-002), Three.js/Vite (ADR-003), file support scope (ADR-004), yfinance data (ADR-005).
+
+### tasks.md
+Sprint 1 tasks with acceptance criteria. Backend engine + Three.js console scene are the primary focus.
+
+---
+
+## Backend Engine (Python)
+
+### backend/app.py
+Flask REST server. Three endpoints: `POST /api/run`, `GET /api/cartridges`, `GET /api/health`. Entry point — run with `python app.py`.
+
+### backend/engine/cerebro_runner.py
+The Console. Backtrader `Cerebro` orchestration. Fresh Cerebro per run, yfinance feed, 5 analyzers (Sharpe, DrawDown, TradeAnalyzer, Returns, AnnualReturn), returns structured dict with `equity_curve` time series and `trades` log.
+
+### backend/engine/strategy_loader.py
+The Cartridge Reader. Routes `.py` → exec(), `.pine` → pinescript_adapter, `.mq4/.mq5` → mql_adapter. Falls back to demo SMA strategy on failure.
+
+### backend/engine/pinescript_adapter.py
+PineScript v5 → Backtrader translator. Regex extracts `ta.sma`, `ta.ema`, `ta.rsi`, `ta.macd`, `ta.bb`, `strategy.entry`, `strategy.close`. Generates Python Backtrader strategy class dynamically.
+
+### backend/engine/mql_adapter.py
+MQL4/5 pattern scanner (v1 approximation). Detects `iMA`, `iRSI`, `iMACD`, `OrderSend`. Generates skeleton strategy. Full MQL execution is v2.
+
+### backend/engine/metrics_extractor.py
+Post-run analytics. Outputs: Sharpe, Sortino, Calmar, max drawdown, win rate, profit factor, equity_curve, trades, monthly heatmap data.
+
+### backend/engine/data_provider.py
+yfinance + CSV feed handler. Normalizes to `bt.feeds.PandasData`.
+
+---
+
+## Frontend Console (Three.js)
+
+### frontend/src/main.js
+Scene bootstrap. WebGLRenderer, PerspectiveCamera, damped OrbitControls, lighting rig, EffectComposer. 60fps animation loop.
+
+### frontend/src/console.js
+3D console body. Fantasy SNES/PS1 hybrid chassis, neon emissive trim (cyan/purple), cartridge slot cavity, breathing power LED.
+
+### frontend/src/cartridge.js
+Core interaction. Drag-drop file → 3D cartridge appears → GSAP tween float-down into slot → click + sound. `.py`=gold, `.pine`=green, `.mq4`=blue.
+
+### frontend/src/screen.js
+CRT screen panel. `WebGLRenderTarget` renders chartworld onto screen mesh. Scanline GLSL shader. Bloom glow via EffectComposer.
+
+### frontend/src/chartworld.js
+3D equity terrain. `PlaneGeometry` vertex displacement = equity values. Green peaks=profit, red valleys=drawdown. Floating buy/sell trade markers. Animated camera fly-through on result reveal.
+
+### frontend/src/hud.js
+Performance HUD. Sharpe speedometer, drawdown gauge, win rate fill bar, return odometer. Achievement badges: "Sharpe Ace" (>1.5), "Iron Stomach" (DD<10%), "Trade Machine" (>500 trades).
+
+### frontend/src/menu.js
+Retro CRT start screen. Blinking cursor. Cartridge library as game titles. NES-style control hints.
+
+### frontend/src/sounds.js
+Web Audio API. Power-on chime, cartridge insert click, backtest-running ticker, result fanfare, achievement jingle.
+
+### frontend/src/api.js
+REST client. `POST /api/run` with FormData. Parses JSON results, fires events to update Three.js scene.
+
+---
+
+## Sample Cartridges
+
+### cartridges/sma_cross.py
+50/200 SMA golden/death cross. Tutorial-level. Extensively commented — reference implementation.
+
+### cartridges/rsi_reversal.py
+RSI(14) mean-reversion. Buy RSI<30, sell RSI>70. ATR-based position sizing.
+
+### cartridges/bollinger_breakout.py
+Bollinger Band squeeze breakout. Low-volatility squeeze → enter on expansion.
+
+### cartridges/sample_pine.pine
+PineScript v5 EMA(9/21) cross with RSI filter. Tests pinescript_adapter.py.
+
+### cartridges/sample_mql.mq4
+MQL4 EA stub with iMA signal. Tests mql_adapter.py. Marked as approximation in UI.
+
+---
+
+## Key Concepts
+
+**The Console-Cartridge Loop**:
+1. Drop strategy file into browser drop zone
+2. 3D cartridge animates into console slot (GSAP + click sound)
+3. Flask API receives file → Cerebro loads strategy → backtest runs
+4. Results JSON → Three.js renders 3D equity terrain
+5. Camera fly-through. HUD updates. Achievements unlock.
+6. User refines strategy → reinserts → loop continues.
+
+**Strategy Execution Modes**:
+- **Native Python** (`.py`): Full Backtrader execution — highest fidelity
+- **PineScript Adapter** (`.pine`): Regex extraction → generated strategy — covers common indicators
+- **MQL Skeleton** (`.mq4/.mq5`): Pattern detection → approximate skeleton
+
+---
+
+## Common Tasks
+
+**Run backend**: `cd backend && pip install -r requirements.txt && python app.py`
+
+**Run frontend**: `cd frontend && npm install && npm run dev`
+
+**Test backtest via curl**:
+```
+curl -X POST http://localhost:5000/api/run -F "file=@../cartridges/sma_cross.py" -F "ticker=SPY" -F "start=2020-01-01" -F "end=2023-12-31" -F "cash=100000"
+```
+
+**Add a new cartridge**: Create `.py` in `cartridges/` subclassing `bt.Strategy` with `__init__` and `next`. Auto-appears in console library.
+
+---
+
+## File Organization
+
+```
+E:\Sterling Storage\CartridgeLab\
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── main.js, console.js, cartridge.js
+│       ├── screen.js, chartworld.js, hud.js
+│       ├── menu.js, sounds.js, api.js, style.css
+├── backend/
+│   ├── app.py
+│   ├── requirements.txt
+│   └── engine/
+│       ├── cerebro_runner.py, strategy_loader.py
+│       ├── pinescript_adapter.py, mql_adapter.py
+│       ├── metrics_extractor.py, data_provider.py
+├── cartridges/
+│   ├── sma_cross.py, rsi_reversal.py, bollinger_breakout.py
+│   ├── sample_pine.pine, sample_mql.mq4
+├── decisions.md, memory.md, tasks.md, llms.txt, README.md
+```
+
+---
+
+## Environment Variables
+
+**Required**: None for local dev.
+**Optional**: `FLASK_ENV`, `FLASK_PORT` (default 5000), `POLYGON_API_KEY` (v2), `LOG_LEVEL`
+
+---
+
+**Last Updated**: 2026-03-02
+**Version**: 0.1.0
+**Inspired by**: Jim Simons, Gunpei Yokoi, Shigeru Miyamoto, Yoshio Sakamoto
