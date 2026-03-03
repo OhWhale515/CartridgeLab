@@ -114,3 +114,61 @@ Communication: REST (`POST /api/run`). Future: WebSocket for streaming progress.
 - Flask dev server needs Gunicorn + process pool for any production use
 - Monitor `yfinance` for Yahoo Finance API changes
 - Large equity curve datasets (10+ years daily) may need LOD for Three.js terrain
+
+---
+
+## 2026-03-02 Implementation Update
+
+This section supersedes the earlier "initial scaffold" status where it conflicts with the current codebase.
+
+### Implemented Since Scaffold
+
+- Backend API routes now exist for `GET /api/health`, `GET /api/cartridges`, `GET /api/cartridge-file/<filename>`, and `POST /api/run`
+- Backend strategy loading works for `.py`, `.pine`, `.mq4`, and `.mq5` files, with demo fallback behavior
+- Backtest responses now include analyzer-backed metrics, a real equity-curve time series, and a closed-trade log
+- Frontend now includes the missing baseline modules required by `main.js`: console, cartridge input, HUD, menu, chart world, and sound hooks
+
+### Current Blockers
+
+- Full smoke testing is still pending because package installation is failing in the current sandbox environment
+- The frontend is functionally bootable in structure but still only at baseline visual fidelity
+- The strategy execution model still needs sandbox hardening before handling untrusted inputs
+
+---
+
+## Resume Checkpoint
+
+Use this section as the canonical restart point for the next session.
+
+### What Was Completed
+
+- Added dual local/deployment support:
+  - `backend/bootstrap.py` loads `backend/.vendor` when present
+  - `backend/install_local_deps.ps1` supports `-Mode core` and `-Mode full`
+  - root `.npmrc` and `frontend/.npmrc` pin npm cache writes to `E:`
+  - `api/index.py` and `api/requirements.txt` support a Vercel-style Python entrypoint
+  - root `package.json` builds the frontend via `npm --prefix frontend run build`
+- Added missing frontend baseline modules and confirmed the frontend build succeeds
+- Added backend route support for:
+  - `/api/health`
+  - `/api/cartridges`
+  - `/api/cartridge-file/<filename>`
+  - `/api/run`
+- Confirmed backend smoke tests for route import, health check, and sample cartridge file fetch
+
+### What We Were Actively Fixing
+
+- The real `POST /api/run` backtest path
+- The Python cartridge sandbox was widened just enough to support:
+  - `import backtrader as bt`
+  - class definitions
+  - execution inside a temporary module namespace
+- The latest runtime issue moved from routing/loader failures into Backtrader execution itself
+
+### Exact Next Step
+
+- Re-run the direct backtest smoke test that was interrupted immediately after adding:
+  - `cerebro.addobserver(bt.observers.Broker)` in `backend/engine/cerebro_runner.py`
+- Then:
+  - if `run_backtest()` succeeds, start local dev servers and run a Playwright browser test
+  - if it still fails, continue debugging from the new traceback rather than restarting discovery

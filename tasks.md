@@ -154,3 +154,22 @@ This document tracks active tasks, sprint planning, and work in progress.
 
 **Last Updated**: 2026-03-02
 **Next Planning Session**: 2026-03-16
+
+---
+
+## Status Correction (2026-03-02)
+
+The task statuses above describe the original scaffold plan and are now partially outdated.
+
+### Implemented or Partially Implemented
+
+- Backend: Flask API Server -> Implemented baseline routes in `backend/app.py`
+- Backend: Cerebro Runner -> Implemented baseline runner in `backend/engine/cerebro_runner.py`
+- Backend: Strategy Loader -> Implemented baseline loader and adapters in `backend/engine/strategy_loader.py`
+- Frontend: Three.js Scene Setup -> `frontend/src/main.js` exists and now has the missing dependent modules
+
+### Still Open
+
+- Full local smoke test with installed dependencies
+- Higher-fidelity 3D console, cartridge animation, and polished terrain rendering
+- Stronger metrics depth, sandbox hardening, and adapter test coverage
