@@ -14,12 +14,17 @@ build/
 .venv/
 venv/
 env/
+backend/.vendor/
+backend/.tmp/
+backend/pip-cache/
 pip-log.txt
 
 # Node / Vite
+.npm-cache/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/.npm-cache/
 *.local
 
 # Data caches
