@@ -28,6 +28,16 @@
       </div>
     </div>
 
+    <div id="launch-transition" class="launch-transition hidden" aria-hidden="true">
+      <div class="launch-transition-mark"></div>
+      <div id="launch-transition-title" class="launch-transition-title">AQUA_XINOBI</div>
+      <div id="launch-transition-sub" class="launch-transition-sub">Mounting market arena...</div>
+      <div class="launch-transition-progress-wrap">
+        <div id="launch-transition-progress" class="launch-transition-progress"></div>
+      </div>
+      <div id="launch-transition-phase" class="launch-transition-phase">Awaiting cartridge lock...</div>
+    </div>
+
     <!-- File drop overlay -->
     <div id="drop-zone" class="drop-zone">
       <div class="drop-hint">
@@ -68,6 +78,74 @@
       <div id="achievements" class="achievements"></div>
     </div>
 
+    <!-- Replay panel -->
+    <div id="replay-panel" class="replay-panel hidden">
+      <div class="replay-header">
+        <div>
+          <div class="replay-title">ACTIVE TRADE PANEL</div>
+          <div id="replay-status" class="replay-status">Awaiting deployment...</div>
+        </div>
+        <div class="replay-controls">
+          <button id="replay-toggle" class="replay-btn" type="button">PAUSE</button>
+          <button id="replay-step" class="replay-btn" type="button">STEP</button>
+          <button id="replay-next" class="replay-btn" type="button">NEXT</button>
+          <button id="replay-speed" class="replay-btn" type="button">2X</button>
+        </div>
+      </div>
+      <div class="trade-pair-row">
+        <span class="trade-label">Trade Pair</span>
+        <span id="trade-pair" class="trade-pair-value">SPY</span>
+      </div>
+      <div class="trade-price-block">
+        <div class="trade-label">Current Price</div>
+        <div class="trade-price-line">
+          <span id="trade-price" class="trade-price-value">0.00</span>
+          <span id="trade-change" class="trade-change-value">0.00%</span>
+        </div>
+      </div>
+      <div class="trade-book">
+        <div class="trade-book-side">
+          <div class="trade-book-label buy">Buy</div>
+          <div id="trade-buys" class="trade-book-value">0</div>
+        </div>
+        <div class="trade-book-vs">VS</div>
+        <div class="trade-book-side">
+          <div class="trade-book-label sell">Sell</div>
+          <div id="trade-sells" class="trade-book-value">0</div>
+        </div>
+      </div>
+      <div class="trade-ladder">
+        <div class="trade-ladder-header">
+          <span>Buy</span>
+          <span>Sell</span>
+        </div>
+        <div class="trade-ladder-row">
+          <span id="trade-bid-1">0.00</span>
+          <span id="trade-ask-1">0.00</span>
+        </div>
+        <div class="trade-ladder-row">
+          <span id="trade-bid-2">0.00</span>
+          <span id="trade-ask-2">0.00</span>
+        </div>
+        <div class="trade-ladder-row">
+          <span id="trade-bid-3">0.00</span>
+          <span id="trade-ask-3">0.00</span>
+        </div>
+      </div>
+      <button id="trade-action" class="trade-action" type="button">[TRADE]</button>
+      <div class="position-panel">
+        <div class="trade-label">Active Position</div>
+        <div class="position-line">
+          <span>Profit</span>
+          <span id="trade-profit" class="position-profit">0.00</span>
+        </div>
+        <div class="position-map">
+          <div class="position-map-mark"></div>
+        </div>
+      </div>
+      <div id="replay-log" class="replay-log"></div>
+    </div>
+
     <!-- Strategy selector panel -->
     <div id="cartridge-menu" class="cartridge-menu">
       <div class="menu-header">
@@ -75,11 +153,21 @@
         <div class="menu-brand">
           <div class="brand-mark" aria-hidden="true"></div>
           <div class="brand-copy">
-            <span class="menu-title">CARTRIDGE LIBRARY</span>
-            <span class="menu-blink">INSERT FILE OR SELECT BELOW</span>
+            <span class="menu-title">SHINOBI TRADER</span>
+            <span class="menu-blink">INTERACTIVE MENU</span>
           </div>
         </div>
       </div>
+      <div class="menu-section-label">Interactive Menu</div>
+      <div class="menu-nav" role="navigation" aria-label="Primary console menu">
+        <button class="menu-nav-item is-active" type="button"><span class="menu-nav-icon">◈</span><span>Trade</span></button>
+        <button class="menu-nav-item" type="button"><span class="menu-nav-icon">▣</span><span>Market</span></button>
+        <button class="menu-nav-item" type="button"><span class="menu-nav-icon">◎</span><span>Skills</span></button>
+        <button class="menu-nav-item" type="button"><span class="menu-nav-icon">✦</span><span>Quests</span></button>
+        <button class="menu-nav-item" type="button"><span class="menu-nav-icon">△</span><span>Leaderboard</span></button>
+        <button class="menu-nav-item" type="button"><span class="menu-nav-icon">▤</span><span>Inventory</span></button>
+      </div>
+      <div class="menu-section-label">Game Library</div>
       <div id="cartridge-list" class="cartridge-list"></div>
     </div>
 
@@ -87,9 +175,94 @@
     <div id="brand-hero" class="brand-hero">
       <div class="brand-hero-mark" aria-hidden="true"></div>
       <div class="brand-hero-copy">
-        <div class="brand-hero-kicker">MIND OVER MARKETS</div>
-        <div class="brand-hero-title">CartridgeLab</div>
-        <div class="brand-hero-subtitle">Insert a trading game. Test the edge. Read the story in the stats.</div>
+        <div class="brand-hero-kicker">RUNNER PROFILE</div>
+        <div class="brand-hero-title">AQUA_XINOBI</div>
+        <div id="brand-hero-subtitle" class="brand-hero-subtitle">Rank: Apex · Status: Ready · Awaiting deployment.</div>
+      </div>
+    </div>
+
+    <div class="utility-cluster" aria-label="Utility controls">
+      <button class="utility-btn" type="button">◌</button>
+      <button class="utility-btn" type="button">◍</button>
+      <button class="utility-btn" type="button">◎</button>
+    </div>
+
+    <!-- Market stage -->
+    <div id="market-stage" class="market-stage">
+      <div class="market-stage-header">
+        <div class="market-chip-wrap">
+          <div id="stage-symbol" class="market-chip">SPY</div>
+          <div id="stage-theme" class="market-chip market-chip-alt">Campaign</div>
+        </div>
+        <div class="market-stage-head-right">
+          <div id="stage-checkpoint" class="stage-checkpoint hidden">CHECKPOINT</div>
+          <div id="stage-status" class="market-stage-status">System standby</div>
+        </div>
+      </div>
+      <div class="market-stage-body">
+        <div class="market-backdrop" aria-hidden="true">
+          <div class="city-glow city-glow-left"></div>
+          <div class="city-glow city-glow-right"></div>
+          <div class="city-line city-line-1"></div>
+          <div class="city-line city-line-2"></div>
+          <div class="city-line city-line-3"></div>
+        </div>
+        <div class="market-stage-meta">
+          <div class="market-chart-title">3D Trading Candlestick Chart</div>
+          <div class="market-indicators">
+            <div id="stage-ema-fast">EMA 20 0.00</div>
+            <div id="stage-ema-mid">EMA 50 0.00</div>
+            <div id="stage-ema-slow">EMA 200 0.00</div>
+          </div>
+        </div>
+        <div class="market-player-tag">
+          <span id="stage-runner-name">SHINOBI_ZERO</span>
+          <span id="stage-runner-level">LV 48</span>
+        </div>
+        <div class="market-depth-panel">
+          <div class="market-depth-time">15M</div>
+          <div class="market-depth-volume">Volume</div>
+          <div class="market-depth-mini">
+            <div class="depth-line depth-line-gold"></div>
+            <div class="depth-line depth-line-cyan"></div>
+          </div>
+          <div class="market-depth-scale">
+            <span>Depth</span>
+            <span id="stage-timeframe">15M</span>
+          </div>
+        </div>
+        <div class="market-grid" aria-hidden="true"></div>
+        <canvas id="replay-lane" class="replay-lane-canvas" aria-hidden="true"></canvas>
+        <div id="candle-stage" class="candle-stage"></div>
+        <div id="runner-avatar" class="runner-avatar" aria-hidden="true">
+          <svg viewBox="0 0 64 64" class="runner-svg">
+            <circle cx="44" cy="12" r="6"></circle>
+            <path d="M40 20 L30 28 L35 36 L24 50"></path>
+            <path d="M34 28 L46 34 L56 26"></path>
+            <path d="M36 38 L48 48"></path>
+            <path d="M30 30 L18 22"></path>
+          </svg>
+        </div>
+        <div id="runner-burst" class="runner-burst" aria-hidden="true"></div>
+      </div>
+      <div class="market-stage-footer">
+        <div class="market-stage-progress">
+          <div class="market-stage-progress-head">
+            <span id="stage-chapter-label">CHAPTER 1</span>
+            <span id="stage-progress-label">0%</span>
+          </div>
+          <div class="market-stage-progress-track">
+            <div id="stage-progress-bar" class="market-stage-progress-bar"></div>
+          </div>
+          <div class="market-stage-chapters" aria-hidden="true">
+            <span class="stage-chapter-node is-active" data-chapter="1">1</span>
+            <span class="stage-chapter-node" data-chapter="2">2</span>
+            <span class="stage-chapter-node" data-chapter="3">3</span>
+            <span class="stage-chapter-node" data-chapter="4">4</span>
+          </div>
+        </div>
+        <div id="stage-price" class="market-stage-price">Equity 100000.00</div>
+        <div id="stage-signal" class="market-stage-signal">No signal</div>
       </div>
     </div>
 
@@ -110,9 +283,9 @@
     <div id="loading-screen" class="loading-screen hidden">
       <div class="loading-inner">
         <div class="loading-brand" aria-hidden="true"></div>
-        <div class="loading-title">RUNNING BACKTEST</div>
+        <div class="loading-title">LAUNCHING TRADING GAME</div>
         <div class="loading-bar-wrap"><div id="loading-bar" class="loading-bar"></div></div>
-        <div class="loading-sub" id="loading-sub">Initializing Cerebro...</div>
+        <div class="loading-sub" id="loading-sub">Mounting market arena...</div>
       </div>
     </div>
 
@@ -120,6 +293,31 @@
     <div id="strategy-badge" class="strategy-badge hidden">
       <span class="strategy-badge-mark" aria-hidden="true"></span>
       <span id="strategy-badge-text"></span>
+    </div>
+
+    <div id="telemetry-bar" class="telemetry-bar">
+      <div class="telemetry-card">
+        <div class="telemetry-label">Live Feed</div>
+        <div id="feed-primary" class="telemetry-value">BTC +0.00%</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">Momentum</div>
+        <div id="feed-secondary" class="telemetry-value">Signal: Standby</div>
+      </div>
+      <div class="telemetry-card">
+        <div class="telemetry-label">Account Balance</div>
+        <div id="account-balance" class="telemetry-value">$100,000.00</div>
+      </div>
+      <div class="telemetry-chat">
+        <div class="telemetry-label">Chat</div>
+        <div id="chat-feed" class="telemetry-chat-feed">
+          <div class="chat-line">System: Awaiting cartridge.</div>
+        </div>
+      </div>
+      <div class="telemetry-clock">
+        <div class="telemetry-label">Game Time</div>
+        <div id="trade-clock" class="telemetry-value">00:00:00 UTC</div>
+      </div>
     </div>
   </div>
 

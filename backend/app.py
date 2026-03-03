@@ -73,6 +73,17 @@ SAMPLE_CARTRIDGE_METADATA = {
             'cash': 100000,
         },
     },
+    'bull_mode_gauntlet.py': {
+        'title': 'Bull Mode Gauntlet',
+        'theme': 'My flagship test run',
+        'description': 'My own challenge mode: only trade with the bull trend, hit fresh breakouts, and stay alive with an ATR trail.',
+        'defaults': {
+            'ticker': 'SPY',
+            'start': '2023-01-01',
+            'end': '2025-01-01',
+            'cash': 100000,
+        },
+    },
 }
 
 

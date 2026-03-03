@@ -4,7 +4,7 @@ Post-run analytics extraction. Transforms raw Backtrader analyzer results
 into the structured metrics JSON returned to the Three.js frontend.
 """
 import math
-from typing import Any
+from datetime import datetime
 
 
 def extract_metrics(strat, starting_cash: float, final_value: float, price_data=None) -> dict:
@@ -79,6 +79,8 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
     # --- Equity Curve (reconstructed from price data + broker value tracking) ---
     equity_curve = _build_equity_curve(strat, price_data, starting_cash)
     trades = _extract_trade_log(strat)
+    price_bars = _build_price_bars(price_data)
+    replay_events = _build_replay_events(price_bars, trades)
 
     # --- Sortino (approximation from returns) ---
     sortino = _approx_sortino(sharpe)
@@ -102,6 +104,8 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
         "annual_return": annual_return,
         "equity_curve": equity_curve,
         "trades": trades,
+        "price_bars": price_bars,
+        "replay_events": replay_events,
     }
 
 
@@ -130,6 +134,95 @@ def _extract_trade_log(strat) -> list:
         return strat.analyzers.tradelog.get_analysis()
     except Exception:
         return []
+
+
+def _build_price_bars(price_data) -> list:
+    """Compress OHLCV data into a frontend-friendly replay payload."""
+    try:
+        if price_data is None or price_data.empty:
+            return []
+
+        total_rows = len(price_data)
+        target = 140
+        stride = max(1, total_rows // target)
+        rows = price_data.iloc[::stride]
+        bars = []
+
+        for ts, row in rows.iterrows():
+            bars.append({
+                "ts": int(ts.timestamp() * 1000),
+                "open": round(float(row.get('open', row.get('close', 0.0))), 4),
+                "high": round(float(row.get('high', row.get('close', 0.0))), 4),
+                "low": round(float(row.get('low', row.get('close', 0.0))), 4),
+                "close": round(float(row.get('close', 0.0)), 4),
+                "volume": round(float(row.get('volume', 0.0)), 2),
+            })
+        return bars
+    except Exception:
+        return []
+
+
+def _build_replay_events(price_bars: list, trades: list) -> list:
+    """Build approximate entry/exit events aligned to compressed price bars."""
+    if not price_bars:
+        return []
+
+    bar_timestamps = [bar["ts"] for bar in price_bars]
+    events = [{
+        "type": "scan",
+        "label": "Scanning for regime",
+        "bar_index": 0,
+    }]
+
+    for trade_index, trade in enumerate(trades, start=1):
+        opened_at = _to_timestamp_ms(trade.get("opened_at"))
+        closed_at = _to_timestamp_ms(trade.get("closed_at"))
+        pnl = round(float(trade.get("pnl", 0.0)), 2)
+
+        events.append({
+            "type": "buy" if pnl >= 0 else "engage",
+            "label": f"Trade {trade_index} opened",
+            "bar_index": _nearest_bar_index(bar_timestamps, opened_at),
+            "trade_index": trade_index,
+            "pnl": pnl,
+        })
+        events.append({
+            "type": "sell" if pnl >= 0 else "damage",
+            "label": f"Trade {trade_index} closed",
+            "bar_index": _nearest_bar_index(bar_timestamps, closed_at),
+            "trade_index": trade_index,
+            "pnl": pnl,
+        })
+
+    events.append({
+        "type": "finish",
+        "label": "Replay complete",
+        "bar_index": max(len(price_bars) - 1, 0),
+    })
+    return sorted(events, key=lambda item: (item.get("bar_index", 0), item.get("trade_index", 0)))
+
+
+def _to_timestamp_ms(value) -> int:
+    if not value:
+        return 0
+    try:
+        return int(datetime.fromisoformat(value).timestamp() * 1000)
+    except Exception:
+        return 0
+
+
+def _nearest_bar_index(bar_timestamps: list, target_ts: int) -> int:
+    if not bar_timestamps or target_ts <= 0:
+        return 0
+
+    nearest_index = 0
+    nearest_distance = abs(bar_timestamps[0] - target_ts)
+    for index, timestamp in enumerate(bar_timestamps):
+        distance = abs(timestamp - target_ts)
+        if distance < nearest_distance:
+            nearest_distance = distance
+            nearest_index = index
+    return nearest_index
 
 
 def _approx_sortino(sharpe: float) -> float:
