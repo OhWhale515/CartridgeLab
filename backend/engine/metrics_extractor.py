@@ -7,7 +7,7 @@ import math
 from typing import Any
 
 
-def extract_metrics(strat, starting_cash: float, final_value: float, price_data) -> dict:
+def extract_metrics(strat, starting_cash: float, final_value: float, price_data=None) -> dict:
     """
     Extract all performance metrics from a completed Backtrader strategy run.
 
@@ -33,11 +33,11 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data)
 
     # --- Drawdown ---
     max_drawdown = 0.0
-    max_drawdown_pct = 0.0
+    max_drawdown_cash = 0.0
     try:
         dd_analysis = strat.analyzers.drawdown.get_analysis()
         max_drawdown = round(dd_analysis.get('max', {}).get('drawdown', 0.0), 2)
-        max_drawdown_pct = round(dd_analysis.get('max', {}).get('moneydown', 0.0), 2)
+        max_drawdown_cash = round(dd_analysis.get('max', {}).get('moneydown', 0.0), 2)
     except Exception:
         pass
 
@@ -78,6 +78,7 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data)
 
     # --- Equity Curve (reconstructed from price data + broker value tracking) ---
     equity_curve = _build_equity_curve(strat, price_data, starting_cash)
+    trades = _extract_trade_log(strat)
 
     # --- Sortino (approximation from returns) ---
     sortino = _approx_sortino(sharpe)
@@ -89,7 +90,7 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data)
         "sharpe": sharpe,
         "sortino": sortino,
         "max_drawdown": max_drawdown,
-        "max_drawdown_pct": max_drawdown_pct,
+        "max_drawdown_cash": max_drawdown_cash,
         "total_trades": total_trades,
         "won_trades": won_trades,
         "lost_trades": lost_trades,
@@ -100,25 +101,33 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data)
         "gross_loss": round(gross_loss, 2),
         "annual_return": annual_return,
         "equity_curve": equity_curve,
+        "trades": trades,
     }
 
 
 def _build_equity_curve(strat, price_data, starting_cash: float) -> list:
     """Build a simplified equity curve from price index. Returns [[timestamp_ms, value], ...]."""
     try:
-        dates = price_data.index
-        n = len(dates)
-        # Simple approximation: scale linearly to final value
-        # Full implementation: track broker value per bar in strategy observer
-        final = strat.broker.getvalue() if hasattr(strat, 'broker') else starting_cash
-        curve = []
-        for i, dt in enumerate(dates):
-            ts = int(dt.timestamp() * 1000)
-            # Linear interpolation placeholder — replaced by real observer in next iteration
-            progress = i / max(n - 1, 1)
-            value = starting_cash + (final - starting_cash) * progress
-            curve.append([ts, round(value, 2)])
-        return curve
+        curve = strat.analyzers.equitycurve.get_analysis()
+        if curve:
+            return curve
+    except Exception:
+        pass
+
+    try:
+        if price_data is not None and not price_data.empty:
+            first_dt = price_data.index[0]
+            return [[int(first_dt.timestamp() * 1000), round(starting_cash, 2)]]
+    except Exception:
+        pass
+
+    return []
+
+
+def _extract_trade_log(strat) -> list:
+    """Return analyzer-captured closed trades, or an empty list."""
+    try:
+        return strat.analyzers.tradelog.get_analysis()
     except Exception:
         return []
 

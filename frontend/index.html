@@ -14,6 +14,20 @@
     <!-- Three.js canvas mounts here -->
     <canvas id="console-canvas"></canvas>
 
+    <!-- Splash screen -->
+    <div id="splash-screen" class="splash-screen">
+      <div class="splash-aura" aria-hidden="true"></div>
+      <div class="splash-card">
+        <div class="splash-mark" aria-hidden="true"></div>
+        <div class="splash-kicker">FLAGSHIP STRATEGY CONSOLE</div>
+        <div class="splash-title">CartridgeLab</div>
+        <div class="splash-subtitle">Powered by the mNtl♭p♠ visual signature. Build strategy cartridges, run game-like market tests, and read the edge in motion.</div>
+        <div id="splash-status" class="splash-status">System idle. Press start to boot the console.</div>
+        <div class="splash-progress-wrap"><div id="splash-progress" class="splash-progress"></div></div>
+        <button id="splash-start" class="splash-start" type="button">PRESS START</button>
+      </div>
+    </div>
+
     <!-- File drop overlay -->
     <div id="drop-zone" class="drop-zone">
       <div class="drop-hint">
@@ -25,6 +39,10 @@
 
     <!-- HUD overlay -->
     <div id="hud" class="hud hidden">
+      <div class="hud-header">
+        <div class="hud-title">RUN RESULTS</div>
+        <div id="hud-stage" class="hud-stage">Awaiting cartridge</div>
+      </div>
       <div class="hud-panel">
         <div class="hud-metric" id="hud-sharpe">
           <span class="hud-label">SHARPE</span>
@@ -53,15 +71,34 @@
     <!-- Strategy selector panel -->
     <div id="cartridge-menu" class="cartridge-menu">
       <div class="menu-header">
-        <span class="menu-title">◄ CARTRIDGE LIBRARY ►</span>
-        <span class="menu-blink">INSERT FILE OR SELECT BELOW</span>
+        <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Toggle cartridge menu">◀</button>
+        <div class="menu-brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-copy">
+            <span class="menu-title">CARTRIDGE LIBRARY</span>
+            <span class="menu-blink">INSERT FILE OR SELECT BELOW</span>
+          </div>
+        </div>
       </div>
       <div id="cartridge-list" class="cartridge-list"></div>
+    </div>
+
+    <!-- Brand hero -->
+    <div id="brand-hero" class="brand-hero">
+      <div class="brand-hero-mark" aria-hidden="true"></div>
+      <div class="brand-hero-copy">
+        <div class="brand-hero-kicker">MIND OVER MARKETS</div>
+        <div class="brand-hero-title">CartridgeLab</div>
+        <div class="brand-hero-subtitle">Insert a trading game. Test the edge. Read the story in the stats.</div>
+      </div>
     </div>
 
     <!-- Run config panel -->
     <div id="run-config" class="run-config hidden">
       <div class="config-title">▶ CONFIGURE RUN</div>
+      <div id="cfg-game-name" class="config-game-name">CUSTOM CARTRIDGE</div>
+      <div id="cfg-game-theme" class="config-game-theme hidden"></div>
+      <div id="cfg-game-blurb" class="config-game-blurb">Insert a cartridge and set the market you want to test.</div>
       <label>TICKER <input id="cfg-ticker" type="text" value="SPY" maxlength="10" /></label>
       <label>START <input id="cfg-start" type="text" value="2020-01-01" /></label>
       <label>END <input id="cfg-end" type="text" value="2023-12-31" /></label>
@@ -72,6 +109,7 @@
     <!-- Loading screen -->
     <div id="loading-screen" class="loading-screen hidden">
       <div class="loading-inner">
+        <div class="loading-brand" aria-hidden="true"></div>
         <div class="loading-title">RUNNING BACKTEST</div>
         <div class="loading-bar-wrap"><div id="loading-bar" class="loading-bar"></div></div>
         <div class="loading-sub" id="loading-sub">Initializing Cerebro...</div>
@@ -79,7 +117,10 @@
     </div>
 
     <!-- Strategy name badge -->
-    <div id="strategy-badge" class="strategy-badge hidden"></div>
+    <div id="strategy-badge" class="strategy-badge hidden">
+      <span class="strategy-badge-mark" aria-hidden="true"></span>
+      <span id="strategy-badge-text"></span>
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

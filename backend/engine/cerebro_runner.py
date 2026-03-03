@@ -9,6 +9,45 @@ import pandas as pd
 from .metrics_extractor import extract_metrics
 
 
+class EquityCurveAnalyzer(bt.Analyzer):
+    """Capture broker value at each bar for frontend visualization."""
+
+    def start(self):
+        self.values = []
+
+    def next(self):
+        dt = self.strategy.datas[0].datetime.datetime(0)
+        self.values.append([int(dt.timestamp() * 1000), round(self.strategy.broker.getvalue(), 2)])
+
+    def get_analysis(self):
+        return self.values
+
+
+class TradeLogAnalyzer(bt.Analyzer):
+    """Capture completed trades in a lightweight JSON-friendly structure."""
+
+    def start(self):
+        self.trades = []
+
+    def notify_trade(self, trade):
+        if not trade.isclosed:
+            return
+
+        opened_at = bt.num2date(trade.dtopen) if trade.dtopen else None
+        closed_at = bt.num2date(trade.dtclose) if trade.dtclose else None
+        self.trades.append({
+            "opened_at": opened_at.isoformat() if opened_at else None,
+            "closed_at": closed_at.isoformat() if closed_at else None,
+            "size": round(trade.size, 8),
+            "pnl": round(trade.pnl, 2),
+            "pnl_comm": round(trade.pnlcomm, 2),
+            "bar_len": trade.barlen,
+        })
+
+    def get_analysis(self):
+        return self.trades
+
+
 def run_backtest(strategy_class, ticker: str, start: str, end: str, cash: float) -> dict:
     """
     Run a full backtest — the equivalent of pressing PLAY on the console.
@@ -37,6 +76,7 @@ def run_backtest(strategy_class, ticker: str, start: str, end: str, cash: float)
     cerebro = bt.Cerebro(stdstats=False)
     cerebro.adddata(feed)
     cerebro.addstrategy(strategy_class)
+    cerebro.addobserver(bt.observers.Broker)
     cerebro.broker.setcash(cash)
     cerebro.broker.setcommission(commission=0.001)  # 0.1% per trade
 
@@ -47,13 +87,8 @@ def run_backtest(strategy_class, ticker: str, start: str, end: str, cash: float)
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
     cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
     cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name='annual')
-
-    # Track equity curve via observer-style approach
-    equity_curve = [cash]
-    trade_log = []
-
-    class EquityObserver(bt.Strategy):
-        pass
+    cerebro.addanalyzer(EquityCurveAnalyzer, _name='equitycurve')
+    cerebro.addanalyzer(TradeLogAnalyzer, _name='tradelog')
 
     # Run — cerebro.run() is PRESS PLAY
     results = cerebro.run()

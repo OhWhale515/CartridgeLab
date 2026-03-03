@@ -3,8 +3,23 @@ CartridgeLab — Strategy Loader (The Cartridge Reader)
 Detects file type and routes to the correct loader/adapter.
 Always falls back to the demo SMA strategy — Yokoi's graceful degradation principle.
 """
+import sys
+import types
+import builtins
 import backtrader as bt
 from typing import Tuple, Type
+
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    """Allow a narrow import surface for cartridge files."""
+    allowed = {
+        'backtrader': bt,
+    }
+
+    if level != 0 or name not in allowed:
+        raise ImportError(f"Import '{name}' is not allowed")
+
+    return allowed[name]
 
 
 def load_strategy(file_content: str, file_ext: str, filename: str) -> Tuple[Type[bt.Strategy], str, str]:
@@ -29,17 +44,29 @@ def load_strategy(file_content: str, file_ext: str, filename: str) -> Tuple[Type
 
 def _load_python(content: str, filename: str) -> Tuple[Type[bt.Strategy], str, str]:
     """Execute Python strategy file in controlled namespace."""
-    namespace = {'bt': bt, '__builtins__': {
+    module_name = '__cartridge__'
+    module = types.ModuleType(module_name)
+    module.__file__ = filename
+    module.bt = bt
+    sys.modules[module_name] = module
+
+    namespace = module.__dict__
+    namespace['__builtins__'] = {
         'print': print, 'len': len, 'range': range, 'enumerate': enumerate,
         'zip': zip, 'abs': abs, 'min': min, 'max': max, 'sum': sum,
         'isinstance': isinstance, 'hasattr': hasattr, 'getattr': getattr,
+        '__build_class__': builtins.__build_class__,
+        '__import__': _safe_import,
+        'object': object,
+        'super': super,
         'True': True, 'False': False, 'None': None,
-    }}
+    }
 
     try:
         exec(compile(content, filename, 'exec'), namespace)
     except Exception as e:
         print(f"[CartridgeLab] Python exec failed: {e} — falling back to demo")
+        sys.modules.pop(module_name, None)
         return _demo_strategy(), 'DemoSMACross', 'python_fallback'
 
     # Find the bt.Strategy subclass in the namespace
@@ -54,11 +81,13 @@ def _load_python(content: str, filename: str) -> Tuple[Type[bt.Strategy], str, s
 
     if strategy_class is None:
         print("[CartridgeLab] No bt.Strategy subclass found — falling back to demo")
+        sys.modules.pop(module_name, None)
         return _demo_strategy(), 'DemoSMACross', 'python_fallback'
 
     # Validate required methods
     if not hasattr(strategy_class, 'next'):
         print("[CartridgeLab] Strategy missing next() method — falling back to demo")
+        sys.modules.pop(module_name, None)
         return _demo_strategy(), 'DemoSMACross', 'python_fallback'
 
     return strategy_class, strategy_name, 'python'

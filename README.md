@@ -32,6 +32,11 @@ Open the browser. Drag any file from `cartridges/` onto the 3D console slot.
 | `sma_cross.py` | 50/200 SMA Cross | ⭐ Tutorial |
 | `rsi_reversal.py` | RSI Mean-Reversion | ⭐⭐ Intermediate |
 | `bollinger_breakout.py` | Bollinger Squeeze | ⭐⭐⭐ Advanced |
+| `trend_quest.py` | Macro breakout baseline | Demo Boss Run |
+| `crypto_breakout_blitz.py` | Crypto arcade breakout | Asset Demo |
+| `forex_range_raid.py` | Forex arena counter-fighter | Asset Demo |
+| `metals_momentum_guard.py` | Metals heavyweight boss fight | Asset Demo |
+| `stock_pullback_story.py` | Stock campaign mode | Asset Demo |
 | `sample_pine.pine` | EMA+RSI PineScript | 🔷 PineScript |
 | `sample_mql.mq4` | MA Cross MQL | 🔶 MQL Skeleton |
 
@@ -73,6 +78,11 @@ Save as `.py`, drop into the console. Done.
 
 **Response**: `sharpe`, `max_drawdown`, `total_return`, `win_rate`, `equity_curve`, `trades`
 
+Also available:
+- `GET /api/cartridges` returns the sample cartridge catalog
+- `GET /api/cartridge-file/<filename>` returns a sample cartridge file for preset runs
+- `GET /api/health` returns a basic health payload
+
 ### `GET /api/cartridges` — List sample cartridges
 ### `GET /api/health` — Health check
 
@@ -100,3 +110,20 @@ Save as `.py`, drop into the console. Done.
 ---
 
 *CartridgeLab — Where strategies become games.*
+---
+
+## Local And Vercel Modes
+
+Standard local mode:
+- Backend: `pip install -r backend/requirements.txt`
+- Frontend: `cd frontend && npm install && npm run dev`
+
+Self-contained local mode:
+- Run `backend/install_local_deps.ps1 -Mode core` for a minimal local vendor overlay
+- Run `backend/install_local_deps.ps1 -Mode full` to vendor the full Python dependency set into `backend/.vendor`
+- `backend/app.py` auto-loads `backend/.vendor` when present
+
+Vercel mode:
+- `api/index.py` is the Python serverless entrypoint
+- `api/requirements.txt` provides the backend runtime dependencies for deployment
+- The repo root `package.json` can build the frontend with `npm run build`

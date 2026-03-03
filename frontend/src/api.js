@@ -3,7 +3,7 @@
  * Handles all communication between the Three.js frontend and the Flask backend.
  */
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 /**
  * Run a backtest. Accepts either a File object (user upload) or a preset filename (sample cartridge).
