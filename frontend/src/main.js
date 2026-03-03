@@ -258,7 +258,6 @@ function setMenuCollapsed(collapsed) {
     }
 
     menu.classList.toggle('collapsed', collapsed);
-    toggle.textContent = collapsed ? '▶' : '◀';
     toggle.setAttribute('aria-label', collapsed ? 'Expand cartridge menu' : 'Collapse cartridge menu');
     toggle.textContent = collapsed ? '+' : '-';
 }
@@ -444,7 +443,6 @@ function finishReplay(result, ticker, start, end) {
 
     const badge = document.getElementById('strategy-badge');
     const badgeText = document.getElementById('strategy-badge-text');
-    badgeText.textContent = `${result.strategy_name} · ${ticker} · ${start} → ${end}`;
     badgeText.textContent = `${result.strategy_name} | ${ticker} | ${start} -> ${end}`;
     badge.classList.remove('hidden');
 
@@ -540,7 +538,6 @@ function showCheckpointBanner(label, progress) {
         return;
     }
 
-    node.textContent = `${label} · ${progress}%`;
     node.textContent = `${label} | ${progress}%`;
     node.classList.remove('hidden');
     appendChatMessage(`System: ${label} reached at ${progress}% of the run.`);
@@ -668,7 +665,6 @@ function initializeMarketStage(result, ticker) {
     if (symbol) symbol.textContent = ticker;
     if (theme) theme.textContent = themeLabelForResult(result);
     if (status) status.textContent = 'Deploying runner';
-    if (profile) profile.textContent = `Rank: Apex · Status: Running · ${result.strategy_name}`;
     if (profile) profile.textContent = `Rank: Apex | Status: Running | ${result.strategy_name}`;
     setText('trade-pair', ticker);
     setText('stage-runner-name', runnerNameForResult(result));
@@ -703,7 +699,6 @@ function updateMarketStageFrame(result, visibleCount) {
         status.textContent = latestEvent ? latestEvent.label : 'Runner advancing';
     }
     if (price) {
-        price.textContent = `Close ${Number(bar.close).toFixed(2)} · Volume ${Math.round(Number(bar.volume || 0))}`;
         price.textContent = `Close ${Number(bar.close).toFixed(2)} | Volume ${Math.round(Number(bar.volume || 0))}`;
     }
     updateStageProgress(visibleCount, bars.length);
