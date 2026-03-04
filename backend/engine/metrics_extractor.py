@@ -199,11 +199,13 @@ def _enrich_trade_log(trades: list, order_ledger: list) -> list:
         record = dict(trade)
         if entry_fill:
             record['entry_price'] = _safe_price(entry_fill.get('executed_price'))
+            record['requested_entry_price'] = _safe_price(entry_fill.get('created_price'))
             record['entry_order_ref'] = entry_fill.get('ref')
             record['entry_order_type'] = entry_fill.get('order_type')
             record['entry_side'] = entry_fill.get('side')
         if exit_fill:
             record['exit_price'] = _safe_price(exit_fill.get('executed_price'))
+            record['requested_exit_price'] = _safe_price(exit_fill.get('created_price'))
             record['exit_order_ref'] = exit_fill.get('ref')
             record['exit_order_type'] = exit_fill.get('order_type')
             record['exit_side'] = exit_fill.get('side')
@@ -256,6 +258,7 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
             "trade_index": trade_index,
             "pnl": pnl,
             "entry_price": entry_price,
+            "requested_entry_price": _safe_price(trade.get("requested_entry_price")),
             "exit_price": exit_price,
             "reason": "Breakout or pullback entry confirmed. Position armed." if profitable else "Entry armed under pressure. Risk control is active.",
             "outcome": "profit" if profitable else "risk",
@@ -268,7 +271,9 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
             "trade_index": trade_index,
             "pnl": pnl,
             "entry_price": entry_price,
+            "requested_entry_price": _safe_price(trade.get("requested_entry_price")),
             "exit_price": exit_price,
+            "requested_exit_price": _safe_price(trade.get("requested_exit_price")),
             "reason": "Profit captured. Trend follow-through paid out." if profitable else "Risk exit triggered. The strategy cut the position.",
             "outcome": "profit" if profitable else "risk",
             "span_bars": span_bars,

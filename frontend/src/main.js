@@ -129,12 +129,14 @@ function showRunConfig(file, preset = null) {
         const start = document.getElementById('cfg-start').value.trim();
         const end = document.getElementById('cfg-end').value.trim();
         const cash = parseFloat(document.getElementById('cfg-cash').value);
+        const fillPolicy = document.getElementById('cfg-fill-policy').value;
         const spreadBps = parseFloat(document.getElementById('cfg-spread-bps').value);
         const slippageBps = parseFloat(document.getElementById('cfg-slippage-bps').value);
         const commissionBps = parseFloat(document.getElementById('cfg-commission-bps').value);
         const marketDataFile = document.getElementById('cfg-market-data')?.files?.[0] || null;
         panel.classList.add('hidden');
         await runWith(file, preset?.name || null, ticker, start, end, cash, marketDataFile, {
+            fillPolicy,
             spreadBps,
             slippageBps,
             commissionBps,
@@ -150,6 +152,7 @@ function applyRunConfigPreset(file, preset) {
     const startInput = document.getElementById('cfg-start');
     const endInput = document.getElementById('cfg-end');
     const cashInput = document.getElementById('cfg-cash');
+    const fillPolicyInput = document.getElementById('cfg-fill-policy');
     const spreadInput = document.getElementById('cfg-spread-bps');
     const slippageInput = document.getElementById('cfg-slippage-bps');
     const commissionInput = document.getElementById('cfg-commission-bps');
@@ -174,6 +177,7 @@ function applyRunConfigPreset(file, preset) {
             endInput.value = preset.defaults.end || endInput.value;
             cashInput.value = String(preset.defaults.cash || cashInput.value);
         }
+        fillPolicyInput.value = 'bar_close';
         spreadInput.value = '2';
         slippageInput.value = '1';
         commissionInput.value = '10';
@@ -187,6 +191,7 @@ function applyRunConfigPreset(file, preset) {
     themeNode.textContent = 'Custom file';
     themeNode.classList.remove('hidden');
     blurbNode.textContent = 'Manual mode: choose the ticker, date range, and capital for this cartridge run.';
+    fillPolicyInput.value = 'bar_close';
     spreadInput.value = '2';
     slippageInput.value = '1';
     commissionInput.value = '10';
@@ -629,6 +634,7 @@ async function openSystemPanel(mode) {
             `STRATEGY: ${replayState.result.strategy_name || 'unknown'}`,
             `PAIR: ${replayState.result.ticker || 'n/a'}`,
             `RETURN: ${Number(replayState.result.total_return || 0).toFixed(2)}%`,
+            `FILL POLICY: ${String(assumptions.fill_model || 'bar_close').toUpperCase()}`,
             `SPREAD: ${Number(assumptions.spread_bps || 0).toFixed(2)} bps`,
             `SLIPPAGE: ${Number(assumptions.slippage_bps || 0).toFixed(2)} bps`,
         ].join('\n');
@@ -1049,11 +1055,16 @@ function renderTradeInspector(result, index) {
     const detail = tradeDetails(result, tradeNo);
     const entry = Number(detail.entry_price || trade.entry_price || 0);
     const exit = Number(detail.exit_price || trade.exit_price || 0);
+    const requestedEntry = Number(detail.requested_entry_price || trade.requested_entry_price || 0);
+    const requestedExit = Number(detail.requested_exit_price || trade.requested_exit_price || 0);
     const bars = Number(detail.span_bars ?? trade.bar_len ?? 0);
     const outcome = pnl >= 0 ? 'Profit' : 'Risk';
 
     setText('trade-inspector-title', `Trade ${tradeNo} | ${outcome}`);
-    setText('trade-inspector-summary', `${outcome} outcome | Opened ${formatIsoShort(trade.opened_at)} | Closed ${formatIsoShort(trade.closed_at)}`);
+    setText(
+        'trade-inspector-summary',
+        `${outcome} | Opened ${formatIsoShort(trade.opened_at)} | Closed ${formatIsoShort(trade.closed_at)} | Req/Filled ${requestedEntry ? requestedEntry.toFixed(2) : 'n/a'} -> ${entry ? entry.toFixed(2) : 'n/a'}`
+    );
     setText('trade-inspector-entry', entry ? entry.toFixed(2) : 'n/a');
     setText('trade-inspector-exit', exit ? exit.toFixed(2) : 'n/a');
     setText('trade-inspector-pnl', `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`);
@@ -1086,7 +1097,9 @@ function tradeDetails(result, tradeIndex) {
         entry_event: entry || null,
         exit_event: exit || null,
         entry_price: entry?.entry_price || exit?.entry_price || 0,
+        requested_entry_price: entry?.requested_entry_price || exit?.requested_entry_price || 0,
         exit_price: exit?.exit_price || entry?.exit_price || 0,
+        requested_exit_price: exit?.requested_exit_price || entry?.requested_exit_price || 0,
         span_bars: exit?.span_bars ?? entry?.span_bars ?? 0,
         reason: exit?.reason || entry?.reason || '',
         entry_bar: entry?.bar_index ?? 0,

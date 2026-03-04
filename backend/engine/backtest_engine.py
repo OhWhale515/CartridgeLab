@@ -122,6 +122,7 @@ def run_backtest(
     spread_bps = _non_negative_bps(execution_config.get('spread_bps', 2.0))
     slippage_bps = _non_negative_bps(execution_config.get('slippage_bps', 1.0))
     commission_bps = _non_negative_bps(execution_config.get('commission_bps', 10.0))
+    fill_policy = _normalize_fill_policy(execution_config.get('fill_policy', 'bar_close'))
 
     raw, data_source = load_market_data(
         ticker=ticker,
@@ -138,8 +139,9 @@ def run_backtest(
     cerebro.addobserver(bt.observers.Broker)
     cerebro.broker.setcash(cash)
     cerebro.broker.setcommission(commission=commission_bps / 10000)
+    _apply_fill_policy(cerebro, fill_policy)
     effective_execution_bps = slippage_bps + (spread_bps / 2)
-    if effective_execution_bps > 0:
+    if effective_execution_bps > 0 and fill_policy != 'strict_limit':
         cerebro.broker.set_slippage_perc(
             perc=effective_execution_bps / 10000,
             slip_open=True,
@@ -174,7 +176,7 @@ def run_backtest(
         'slippage_bps': round(slippage_bps, 4),
         'commission_bps': round(commission_bps, 4),
         'effective_execution_bps': round(effective_execution_bps, 4),
-        'fill_model': 'bar_close_with_slippage',
+        'fill_model': fill_policy,
     }
     return payload
 
@@ -237,3 +239,40 @@ def _non_negative_bps(value):
         return max(parsed, 0.0)
     except Exception:
         return 0.0
+
+
+def _normalize_fill_policy(value):
+    option = str(value or 'bar_close').strip().lower()
+    allowed = {'bar_close', 'next_open', 'strict_limit', 'aggressive'}
+    return option if option in allowed else 'bar_close'
+
+
+def _apply_fill_policy(cerebro, fill_policy):
+    broker = cerebro.broker
+    if fill_policy == 'next_open':
+        try:
+            broker.set_coc(False)
+            broker.set_coo(True)
+        except Exception:
+            pass
+        return
+    if fill_policy == 'strict_limit':
+        try:
+            broker.set_coc(False)
+            broker.set_coo(False)
+            broker.set_slippage_fixed(0.0, slip_open=False, slip_limit=False, slip_match=False, slip_out=False)
+        except Exception:
+            pass
+        return
+    if fill_policy == 'aggressive':
+        try:
+            broker.set_coc(True)
+            broker.set_coo(True)
+        except Exception:
+            pass
+        return
+    try:
+        broker.set_coc(True)
+        broker.set_coo(False)
+    except Exception:
+        pass

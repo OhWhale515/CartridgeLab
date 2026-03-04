@@ -83,6 +83,7 @@ def _build_summary(payload: dict) -> dict:
         "spread_bps": payload.get("spread_bps"),
         "slippage_bps": payload.get("slippage_bps"),
         "commission_bps": payload.get("commission_bps"),
+        "fill_policy": payload.get("fill_policy"),
     }
 
 

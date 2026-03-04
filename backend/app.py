@@ -253,6 +253,7 @@ def run():
         commission_bps = float(request.form.get('commission_bps', 10))
     except (TypeError, ValueError):
         return jsonify({"status": "error", "message": "Execution settings must be valid numbers"}), 400
+    fill_policy = str(request.form.get('fill_policy', 'bar_close')).strip().lower()
 
     if cash <= 0:
         return jsonify({"status": "error", "message": "Cash must be greater than zero"}), 400
@@ -285,6 +286,7 @@ def run():
                 'spread_bps': spread_bps,
                 'slippage_bps': slippage_bps,
                 'commission_bps': commission_bps,
+                'fill_policy': fill_policy,
             },
         )
         results['strategy_name'] = strategy_name
@@ -299,6 +301,7 @@ def run():
         results['spread_bps'] = spread_bps
         results['slippage_bps'] = slippage_bps
         results['commission_bps'] = commission_bps
+        results['fill_policy'] = fill_policy
         results = persist_run_record(results)
         return jsonify(results)
     except ValueError as e:

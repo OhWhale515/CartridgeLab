@@ -39,6 +39,7 @@ export async function runBacktest(
     formData.append('spread_bps', String(executionConfig.spreadBps ?? 2));
     formData.append('slippage_bps', String(executionConfig.slippageBps ?? 1));
     formData.append('commission_bps', String(executionConfig.commissionBps ?? 10));
+    formData.append('fill_policy', String(executionConfig.fillPolicy ?? 'bar_close'));
     if (marketDataFile) {
         formData.append('market_data', marketDataFile);
     }
