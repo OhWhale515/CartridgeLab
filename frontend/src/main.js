@@ -129,9 +129,16 @@ function showRunConfig(file, preset = null) {
         const start = document.getElementById('cfg-start').value.trim();
         const end = document.getElementById('cfg-end').value.trim();
         const cash = parseFloat(document.getElementById('cfg-cash').value);
+        const spreadBps = parseFloat(document.getElementById('cfg-spread-bps').value);
+        const slippageBps = parseFloat(document.getElementById('cfg-slippage-bps').value);
+        const commissionBps = parseFloat(document.getElementById('cfg-commission-bps').value);
         const marketDataFile = document.getElementById('cfg-market-data')?.files?.[0] || null;
         panel.classList.add('hidden');
-        await runWith(file, preset?.name || null, ticker, start, end, cash, marketDataFile);
+        await runWith(file, preset?.name || null, ticker, start, end, cash, marketDataFile, {
+            spreadBps,
+            slippageBps,
+            commissionBps,
+        });
     };
 }
 
@@ -143,6 +150,9 @@ function applyRunConfigPreset(file, preset) {
     const startInput = document.getElementById('cfg-start');
     const endInput = document.getElementById('cfg-end');
     const cashInput = document.getElementById('cfg-cash');
+    const spreadInput = document.getElementById('cfg-spread-bps');
+    const slippageInput = document.getElementById('cfg-slippage-bps');
+    const commissionInput = document.getElementById('cfg-commission-bps');
     const marketDataInput = document.getElementById('cfg-market-data');
 
     if (preset) {
@@ -164,6 +174,9 @@ function applyRunConfigPreset(file, preset) {
             endInput.value = preset.defaults.end || endInput.value;
             cashInput.value = String(preset.defaults.cash || cashInput.value);
         }
+        spreadInput.value = '2';
+        slippageInput.value = '1';
+        commissionInput.value = '10';
         if (marketDataInput) {
             marketDataInput.value = '';
         }
@@ -174,12 +187,15 @@ function applyRunConfigPreset(file, preset) {
     themeNode.textContent = 'Custom file';
     themeNode.classList.remove('hidden');
     blurbNode.textContent = 'Manual mode: choose the ticker, date range, and capital for this cartridge run.';
+    spreadInput.value = '2';
+    slippageInput.value = '1';
+    commissionInput.value = '10';
     if (marketDataInput) {
         marketDataInput.value = '';
     }
 }
 
-async function runWith(file, presetFilename, ticker, start, end, cash, marketDataFile = null) {
+async function runWith(file, presetFilename, ticker, start, end, cash, marketDataFile = null, executionConfig = {}) {
     await playInsertTransition(presetFilename || file?.name || 'Custom cartridge');
     showLoading(true, 'Initializing Cerebro...');
     setHudStage('Running simulation');
@@ -188,7 +204,7 @@ async function runWith(file, presetFilename, ticker, start, end, cash, marketDat
     playSound('running');
 
     try {
-        const result = await runBacktest(file, presetFilename, ticker, start, end, cash, marketDataFile);
+        const result = await runBacktest(file, presetFilename, ticker, start, end, cash, marketDataFile, executionConfig);
         showLoading(false);
         hideLaunchTransition();
         setGameShellActive(true);
@@ -607,11 +623,14 @@ async function openSystemPanel(mode) {
     }
 
     if (mode === 'trade' && replayState.result?.run_id) {
+        const assumptions = replayState.result.execution_assumptions || {};
         meta.textContent = [
             `RUN ID: ${replayState.result.run_id}`,
             `STRATEGY: ${replayState.result.strategy_name || 'unknown'}`,
             `PAIR: ${replayState.result.ticker || 'n/a'}`,
             `RETURN: ${Number(replayState.result.total_return || 0).toFixed(2)}%`,
+            `SPREAD: ${Number(assumptions.spread_bps || 0).toFixed(2)} bps`,
+            `SLIPPAGE: ${Number(assumptions.slippage_bps || 0).toFixed(2)} bps`,
         ].join('\n');
         return;
     }

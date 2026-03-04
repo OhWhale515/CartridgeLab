@@ -8,7 +8,16 @@ const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 /**
  * Run a backtest. Accepts either a File object (user upload) or a preset filename (sample cartridge).
  */
-export async function runBacktest(file, presetFilename, ticker, start, end, cash, marketDataFile = null) {
+export async function runBacktest(
+    file,
+    presetFilename,
+    ticker,
+    start,
+    end,
+    cash,
+    marketDataFile = null,
+    executionConfig = {},
+) {
     const formData = new FormData();
 
     if (file) {
@@ -27,6 +36,9 @@ export async function runBacktest(file, presetFilename, ticker, start, end, cash
     formData.append('start', start);
     formData.append('end', end);
     formData.append('cash', cash.toString());
+    formData.append('spread_bps', String(executionConfig.spreadBps ?? 2));
+    formData.append('slippage_bps', String(executionConfig.slippageBps ?? 1));
+    formData.append('commission_bps', String(executionConfig.commissionBps ?? 10));
     if (marketDataFile) {
         formData.append('market_data', marketDataFile);
     }

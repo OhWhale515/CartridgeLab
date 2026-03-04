@@ -115,8 +115,14 @@ def run_backtest(
     cash: float,
     market_data_bytes: bytes | None = None,
     market_data_name: str | None = None,
+    execution_config: dict | None = None,
 ) -> dict:
     """Run a full backtest using imported CSV data or downloaded history."""
+    execution_config = execution_config or {}
+    spread_bps = _non_negative_bps(execution_config.get('spread_bps', 2.0))
+    slippage_bps = _non_negative_bps(execution_config.get('slippage_bps', 1.0))
+    commission_bps = _non_negative_bps(execution_config.get('commission_bps', 10.0))
+
     raw, data_source = load_market_data(
         ticker=ticker,
         start=start,
@@ -131,7 +137,16 @@ def run_backtest(
     cerebro.addstrategy(strategy_class)
     cerebro.addobserver(bt.observers.Broker)
     cerebro.broker.setcash(cash)
-    cerebro.broker.setcommission(commission=0.001)
+    cerebro.broker.setcommission(commission=commission_bps / 10000)
+    effective_execution_bps = slippage_bps + (spread_bps / 2)
+    if effective_execution_bps > 0:
+        cerebro.broker.set_slippage_perc(
+            perc=effective_execution_bps / 10000,
+            slip_open=True,
+            slip_limit=True,
+            slip_match=True,
+            slip_out=True,
+        )
 
     cerebro.addanalyzer(
         bt.analyzers.SharpeRatio,
@@ -154,6 +169,13 @@ def run_backtest(
 
     payload = extract_metrics(strat, cash, final_value, raw)
     payload['data_source'] = data_source
+    payload['execution_assumptions'] = {
+        'spread_bps': round(spread_bps, 4),
+        'slippage_bps': round(slippage_bps, 4),
+        'commission_bps': round(commission_bps, 4),
+        'effective_execution_bps': round(effective_execution_bps, 4),
+        'fill_model': 'bar_close_with_slippage',
+    }
     return payload
 
 
@@ -205,5 +227,13 @@ def _safe_float(value):
         if value is None:
             return 0.0
         return round(float(value), 8)
+    except Exception:
+        return 0.0
+
+
+def _non_negative_bps(value):
+    try:
+        parsed = float(value)
+        return max(parsed, 0.0)
     except Exception:
         return 0.0

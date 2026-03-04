@@ -247,9 +247,17 @@ def run():
         cash = float(request.form.get('cash', 100000))
     except (TypeError, ValueError):
         return jsonify({"status": "error", "message": "Cash must be a valid number"}), 400
+    try:
+        spread_bps = float(request.form.get('spread_bps', 2))
+        slippage_bps = float(request.form.get('slippage_bps', 1))
+        commission_bps = float(request.form.get('commission_bps', 10))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "Execution settings must be valid numbers"}), 400
 
     if cash <= 0:
         return jsonify({"status": "error", "message": "Cash must be greater than zero"}), 400
+    if min(spread_bps, slippage_bps, commission_bps) < 0:
+        return jsonify({"status": "error", "message": "Execution settings cannot be negative"}), 400
 
     file_content = file.read().decode('utf-8', errors='replace')
     file_ext = os.path.splitext(file.filename)[1].lower()
@@ -273,6 +281,11 @@ def run():
             cash,
             market_data_bytes=market_data_bytes,
             market_data_name=market_data_name,
+            execution_config={
+                'spread_bps': spread_bps,
+                'slippage_bps': slippage_bps,
+                'commission_bps': commission_bps,
+            },
         )
         results['strategy_name'] = strategy_name
         results['file_type'] = file_type
@@ -283,6 +296,9 @@ def run():
         results['cash'] = cash
         results['source_file'] = file.filename
         results['market_data_file'] = market_data_name
+        results['spread_bps'] = spread_bps
+        results['slippage_bps'] = slippage_bps
+        results['commission_bps'] = commission_bps
         results = persist_run_record(results)
         return jsonify(results)
     except ValueError as e:

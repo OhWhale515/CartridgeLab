@@ -73,12 +73,16 @@ def _build_summary(payload: dict) -> dict:
         "end": payload.get("end"),
         "file_type": payload.get("file_type"),
         "source_file": payload.get("source_file"),
+        "data_source": payload.get("data_source"),
         "total_return": payload.get("total_return"),
         "sharpe": payload.get("sharpe"),
         "max_drawdown": payload.get("max_drawdown"),
         "win_rate": payload.get("win_rate"),
         "total_trades": payload.get("total_trades"),
         "final_value": payload.get("final_value"),
+        "spread_bps": payload.get("spread_bps"),
+        "slippage_bps": payload.get("slippage_bps"),
+        "commission_bps": payload.get("commission_bps"),
     }
 
 
