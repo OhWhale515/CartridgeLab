@@ -14,6 +14,7 @@ import backtrader as bt
 import pandas as pd
 import yfinance as yf
 
+from .execution_simulator import normalize_execution_config
 from .metrics_extractor import extract_metrics
 
 
@@ -118,11 +119,11 @@ def run_backtest(
     execution_config: dict | None = None,
 ) -> dict:
     """Run a full backtest using imported CSV data or downloaded history."""
-    execution_config = execution_config or {}
-    spread_bps = _non_negative_bps(execution_config.get('spread_bps', 2.0))
-    slippage_bps = _non_negative_bps(execution_config.get('slippage_bps', 1.0))
-    commission_bps = _non_negative_bps(execution_config.get('commission_bps', 10.0))
-    fill_policy = _normalize_fill_policy(execution_config.get('fill_policy', 'bar_close'))
+    normalized_execution = normalize_execution_config(execution_config)
+    spread_bps = normalized_execution['spread_bps']
+    slippage_bps = normalized_execution['slippage_bps']
+    commission_bps = normalized_execution['commission_bps']
+    fill_policy = normalized_execution['fill_model']
 
     raw, data_source = load_market_data(
         ticker=ticker,
@@ -140,7 +141,7 @@ def run_backtest(
     cerebro.broker.setcash(cash)
     cerebro.broker.setcommission(commission=commission_bps / 10000)
     _apply_fill_policy(cerebro, fill_policy)
-    effective_execution_bps = slippage_bps + (spread_bps / 2)
+    effective_execution_bps = normalized_execution['effective_execution_bps']
     if effective_execution_bps > 0 and fill_policy != 'strict_limit':
         cerebro.broker.set_slippage_perc(
             perc=effective_execution_bps / 10000,
@@ -167,17 +168,12 @@ def run_backtest(
 
     results = cerebro.run()
     strat = results[0]
+    setattr(strat, '_cartridgelab_execution_assumptions', normalized_execution)
     final_value = cerebro.broker.getvalue()
 
     payload = extract_metrics(strat, cash, final_value, raw)
     payload['data_source'] = data_source
-    payload['execution_assumptions'] = {
-        'spread_bps': round(spread_bps, 4),
-        'slippage_bps': round(slippage_bps, 4),
-        'commission_bps': round(commission_bps, 4),
-        'effective_execution_bps': round(effective_execution_bps, 4),
-        'fill_model': fill_policy,
-    }
+    payload['execution_assumptions'] = normalized_execution
     return payload
 
 
@@ -231,22 +227,6 @@ def _safe_float(value):
         return round(float(value), 8)
     except Exception:
         return 0.0
-
-
-def _non_negative_bps(value):
-    try:
-        parsed = float(value)
-        return max(parsed, 0.0)
-    except Exception:
-        return 0.0
-
-
-def _normalize_fill_policy(value):
-    option = str(value or 'bar_close').strip().lower()
-    allowed = {'bar_close', 'next_open', 'strict_limit', 'aggressive'}
-    return option if option in allowed else 'bar_close'
-
-
 def _apply_fill_policy(cerebro, fill_policy):
     broker = cerebro.broker
     if fill_policy == 'next_open':

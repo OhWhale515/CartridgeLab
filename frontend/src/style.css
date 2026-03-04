@@ -2903,6 +2903,83 @@ body.console-drop-armed #console-canvas {
   line-height: 1.45;
 }
 
+.run-analysis {
+  position: fixed;
+  left: 612px;
+  bottom: 106px;
+  z-index: 19;
+  width: min(360px, calc(100vw - 640px));
+  min-width: 320px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(42, 246, 255, 0.16);
+  background: linear-gradient(180deg, rgba(7, 18, 34, 0.92), rgba(4, 10, 24, 0.9));
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 213, 106, 0.03);
+}
+
+.run-analysis-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.run-analysis-kicker {
+  font-family: var(--font-hud);
+  font-size: 0.5rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 213, 106, 0.76);
+}
+
+.run-analysis-title {
+  margin-top: 4px;
+  font-family: var(--font-hud);
+  font-size: 0.76rem;
+  color: rgba(220, 245, 255, 0.9);
+}
+
+.run-analysis-summary {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: rgba(214, 224, 255, 0.76);
+}
+
+.run-analysis-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.run-analysis-stat {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(42, 246, 255, 0.08);
+  background: rgba(8, 20, 40, 0.34);
+}
+
+.run-analysis-stat-label {
+  display: block;
+  font-family: var(--font-hud);
+  font-size: 0.45rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 213, 106, 0.7);
+}
+
+.run-analysis-stat-value {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-hud);
+  font-size: 0.78rem;
+  color: rgba(220, 245, 255, 0.9);
+}
+
 @media (max-width: 1100px) {
   .trade-inspector {
     left: 98px;
@@ -2910,6 +2987,11 @@ body.console-drop-armed #console-canvas {
 
   .execution-analysis {
     right: 12px;
+  }
+
+  .run-analysis {
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
@@ -2932,6 +3014,19 @@ body.console-drop-armed #console-canvas {
 
   .execution-analysis-columns,
   .execution-analysis-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .run-analysis {
+    left: 12px;
+    right: 12px;
+    bottom: 246px;
+    width: auto;
+    min-width: 0;
+    transform: none;
+  }
+
+  .run-analysis-stats {
     grid-template-columns: 1fr;
   }
 }

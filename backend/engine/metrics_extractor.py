@@ -6,7 +6,8 @@ into the structured metrics JSON returned to the Three.js frontend.
 import math
 from datetime import datetime
 
-from .execution_engine import analyze_execution
+from .execution_engine import analyze_execution, build_run_analysis
+from .execution_simulator import build_fill_stress_summary
 from .order_model import safe_price
 
 
@@ -88,6 +89,9 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
     execution_summary = execution_data.get("execution_summary", {})
     execution_diagnostics = execution_data.get("execution_diagnostics", {})
     trades = execution_data.get("trades", [])
+    execution_assumptions = getattr(strat, '_cartridgelab_execution_assumptions', {}) or {}
+    run_analysis = build_run_analysis(trades, execution_assumptions)
+    fill_stress = build_fill_stress_summary(order_lifecycle, execution_assumptions)
     price_bars = _build_price_bars(price_data)
     replay_events = _build_replay_events(price_bars, trades)
 
@@ -116,6 +120,8 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
         "order_lifecycle": order_lifecycle,
         "execution_summary": execution_summary,
         "execution_diagnostics": execution_diagnostics,
+        "run_analysis": run_analysis,
+        "fill_stress": fill_stress,
         "trades": trades,
         "price_bars": price_bars,
         "replay_events": replay_events,

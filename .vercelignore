@@ -1,0 +1,7 @@
+.git
+.github
+backend/data
+frontend/node_modules
+frontend/.npm-cache
+frontend/dist
+vercel-deploy.log

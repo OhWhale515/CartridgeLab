@@ -410,6 +410,7 @@ function setGameShellActive(active) {
         document.getElementById('replay-panel')?.classList.add('hidden');
         document.getElementById('trade-inspector')?.classList.add('hidden');
         document.getElementById('execution-analysis')?.classList.add('hidden');
+        document.getElementById('run-analysis')?.classList.add('hidden');
     }
 }
 
@@ -632,17 +633,23 @@ async function openSystemPanel(mode) {
         const assumptions = replayState.result.execution_assumptions || {};
         const lifecycleCount = Array.isArray(replayState.result.order_lifecycle) ? replayState.result.order_lifecycle.length : 0;
         const executionSummary = replayState.result.execution_summary || {};
+        const analysis = replayState.result.run_analysis || {};
+        const fillStress = replayState.result.fill_stress || {};
         meta.textContent = [
             `RUN ID: ${replayState.result.run_id}`,
             `STRATEGY: ${replayState.result.strategy_name || 'unknown'}`,
             `PAIR: ${replayState.result.ticker || 'n/a'}`,
             `RETURN: ${Number(replayState.result.total_return || 0).toFixed(2)}%`,
+            `W/L: ${Number(analysis.winning_trades || 0)} / ${Number(analysis.losing_trades || 0)}`,
             `FILL POLICY: ${String(assumptions.fill_model || 'bar_close').toUpperCase()}`,
             `SPREAD: ${Number(assumptions.spread_bps || 0).toFixed(2)} bps`,
             `SLIPPAGE: ${Number(assumptions.slippage_bps || 0).toFixed(2)} bps`,
             `ORDER LIFECYCLES: ${lifecycleCount}`,
             `AVG EXEC: ${executionQualityLabel(executionSummary.avg_quality_bps || 0)}`,
             `TOTAL COMM: ${Number(executionSummary.total_commission || 0).toFixed(2)}`,
+            `EXPECTANCY: ${Number(analysis.expectancy || 0).toFixed(2)}`,
+            `MODELED FRICTION: ${Number(fillStress.expected_friction_bps || 0).toFixed(2)} bps`,
+            `IMPACTED ORDERS: ${Number(fillStress.impacted_orders || 0)} / ${Number(fillStress.completed_orders || 0)}`,
         ].join('\n');
         return;
     }
@@ -667,7 +674,10 @@ async function openSystemPanel(mode) {
                 const dd = Number(run.max_drawdown || 0).toFixed(2);
                 const exec = executionQualityLabel(run.avg_execution_quality_bps || 0);
                 const comm = Number(run.total_execution_commission || 0).toFixed(2);
-                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | EXEC ${exec} | COMM ${comm} | ${run.run_id}`;
+                const expectancy = Number(run.expectancy || 0).toFixed(2);
+                const stress = Number(run.expected_friction_bps || 0).toFixed(2);
+                const impactRate = Number(run.impact_rate || 0).toFixed(2);
+                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | EXP ${expectancy} | EXEC ${exec} | STRESS ${stress}bps ${impactRate}% | COMM ${comm} | ${run.run_id}`;
             }).join('\n');
         } catch (error) {
             meta.textContent = `Run archive unavailable.\n${error.message}`;
@@ -802,6 +812,7 @@ function startReplay(result, ticker, start, end) {
     initializeMarketStage(result, ticker);
     initializeTradeInspector(result);
     initializeExecutionAnalysis(result);
+    initializeRunAnalysis(result);
     updateTradeTelemetry(result, ticker, 0);
     appendChatMessage(`System: ${result.strategy_name} deployed on ${ticker}.`);
     setReplayStatus(replayStatusForCurrentStep());
@@ -880,6 +891,7 @@ function resetReplay() {
     }
     document.getElementById('trade-inspector')?.classList.add('hidden');
     document.getElementById('execution-analysis')?.classList.add('hidden');
+    document.getElementById('run-analysis')?.classList.add('hidden');
 }
 
 function getReplayTotalSteps() {
@@ -1050,6 +1062,47 @@ function initializeExecutionAnalysis(result) {
     renderExecutionDiagnosticsRows('execution-analysis-worst', diagnostics.worst_orders || []);
 }
 
+function initializeRunAnalysis(result) {
+    const panel = document.getElementById('run-analysis');
+    if (!panel) {
+        return;
+    }
+
+    const analysis = result?.run_analysis || {};
+    const fillStress = result?.fill_stress || {};
+    const tradeCount = Number(analysis.trade_count || 0);
+    panel.classList.toggle('hidden', tradeCount <= 0);
+    if (tradeCount <= 0) {
+        return;
+    }
+
+    setText(
+        'run-analysis-title',
+        `${result?.strategy_name || 'Run'} | ${result?.ticker || 'MARKET'} | ${tradeCount} trades`
+    );
+    setText(
+        'run-analysis-summary',
+        `Expectancy ${Number(analysis.expectancy || 0).toFixed(2)} | Avg winner ${Number(analysis.avg_winner || 0).toFixed(2)} | Avg loser ${Number(analysis.avg_loser || 0).toFixed(2)}`
+    );
+
+    const stats = document.getElementById('run-analysis-stats');
+    if (stats) {
+        stats.innerHTML = [
+            runAnalysisStatMarkup('Win / Loss', `${Number(analysis.winning_trades || 0)} / ${Number(analysis.losing_trades || 0)}`),
+            runAnalysisStatMarkup('Long / Short', `${Number(analysis.long_trades || 0)} / ${Number(analysis.short_trades || 0)}`),
+            runAnalysisStatMarkup('Net PnL', Number(analysis.net_pnl || 0).toFixed(2)),
+            runAnalysisStatMarkup('Avg Bars', Number(analysis.avg_bars_held || 0).toFixed(2)),
+            runAnalysisStatMarkup('Gross Profit', Number(analysis.gross_profit || 0).toFixed(2)),
+            runAnalysisStatMarkup('Gross Loss', Number(analysis.gross_loss || 0).toFixed(2)),
+        ].join('');
+    }
+
+    setText(
+        'run-analysis-stress',
+        `Execution stress | Model ${String(fillStress.fill_model || 'bar_close').toUpperCase()} | Expected friction ${Number(fillStress.expected_friction_bps || 0).toFixed(2)} bps | Impacted ${Number(fillStress.impacted_orders || 0)}/${Number(fillStress.completed_orders || 0)} orders (${Number(fillStress.impact_rate || 0).toFixed(2)}%)`
+    );
+}
+
 function syncTradeInspectorToReplay() {
     const result = replayState.result;
     if (!result?.trades?.length) {
@@ -1132,7 +1185,7 @@ function renderTradeInspector(result, index) {
     );
     setText(
         'trade-inspector-order',
-        `Orders | Entry ref ${executionDetail.entry_order?.ref ?? 'n/a'} ${String(executionDetail.entry_order?.order_type || 'n/a').toUpperCase()} [${formatStatusPath(executionDetail.entry_status_path)}] | Exit ref ${executionDetail.exit_order?.ref ?? 'n/a'} ${String(executionDetail.exit_order?.order_type || 'n/a').toUpperCase()} [${formatStatusPath(executionDetail.exit_status_path)}] | Comm ${Number(executionDetail.total_commission || 0).toFixed(2)}`
+        `Orders | Entry ref ${executionDetail.entry_order?.ref ?? 'n/a'} ${String(executionDetail.entry_order?.order_type || 'n/a').toUpperCase()} [${formatStatusPath(executionDetail.entry_status_path)}] | Exit ref ${executionDetail.exit_order?.ref ?? 'n/a'} ${String(executionDetail.exit_order?.order_type || 'n/a').toUpperCase()} [${formatStatusPath(executionDetail.exit_status_path)}] | Comm ${Number(executionDetail.total_commission || 0).toFixed(2)} | Match ${String(trade.fill_match_confidence || 'unknown').toUpperCase()} | ${trade.fill_match_note || 'No match note.'}`
     );
     setText('trade-inspector-run', summarizeExecutionRun(result));
     renderTradeLifecycleRows(executionDetail.lifecycle_rows || []);
@@ -1321,6 +1374,15 @@ function renderExecutionDiagnosticsRows(id, rows) {
             ${String(row.final_status || 'n/a').toUpperCase()}
         </div>
     `).join('');
+}
+
+function runAnalysisStatMarkup(label, value) {
+    return `
+        <div class="run-analysis-stat">
+            <span class="run-analysis-stat-label">${label}</span>
+            <span class="run-analysis-stat-value">${value}</span>
+        </div>
+    `;
 }
 
 function appendReplayEvents(result) {

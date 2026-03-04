@@ -90,6 +90,14 @@ def _build_summary(payload: dict) -> dict:
         "best_execution_quality_bps": payload.get("execution_summary", {}).get("best_quality_bps"),
         "worst_execution_quality_bps": payload.get("execution_summary", {}).get("worst_quality_bps"),
         "total_execution_commission": payload.get("execution_summary", {}).get("total_commission"),
+        "expectancy": payload.get("run_analysis", {}).get("expectancy"),
+        "net_pnl": payload.get("run_analysis", {}).get("net_pnl"),
+        "winning_trades": payload.get("run_analysis", {}).get("winning_trades"),
+        "losing_trades": payload.get("run_analysis", {}).get("losing_trades"),
+        "expected_friction_bps": payload.get("fill_stress", {}).get("expected_friction_bps"),
+        "impacted_orders": payload.get("fill_stress", {}).get("impacted_orders"),
+        "completed_orders": payload.get("fill_stress", {}).get("completed_orders"),
+        "impact_rate": payload.get("fill_stress", {}).get("impact_rate"),
     }
 
 

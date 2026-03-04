@@ -53,16 +53,7 @@ def enrich_trade_log(trades: list, order_ledger: list, lifecycle_by_ref: dict | 
             if _between(fill.get('executed_at'), opened_at, closed_at)
         ]
         candidates = window_fills or fills
-        entry_fill = _nearest_fill(candidates, opened_at)
-        remaining = [fill for fill in candidates if fill is not entry_fill]
-        preferred_exit_side = None
-        if entry_fill:
-            preferred_exit_side = 'sell' if str(entry_fill.get('side') or '').lower() == 'buy' else 'buy'
-        side_filtered = [
-            fill for fill in remaining
-            if str(fill.get('side') or '').lower() == preferred_exit_side
-        ] if preferred_exit_side else []
-        exit_fill = _nearest_fill(side_filtered or remaining or candidates, closed_at)
+        entry_fill, exit_fill = _match_trade_fills(candidates, opened_at, closed_at)
         record = dict(trade)
         if entry_fill:
             record['entry_price'] = safe_price(entry_fill.get('executed_price'))
@@ -95,6 +86,9 @@ def enrich_trade_log(trades: list, order_ledger: list, lifecycle_by_ref: dict | 
                 record.get('exit_price'),
                 record.get('exit_side'),
             )
+        confidence, note = _match_confidence(entry_fill, exit_fill, candidates)
+        record['fill_match_confidence'] = confidence
+        record['fill_match_note'] = note
         record['execution_detail'] = build_trade_execution_detail(record, lifecycle_by_ref)
         enriched.append(record)
 
@@ -131,6 +125,35 @@ def build_execution_diagnostics(order_lifecycle: list, execution_summary: dict |
     }
 
 
+def build_run_analysis(trades: list, execution_assumptions: dict | None = None) -> dict:
+    """Aggregate trade-level strategy results for a serious analysis surface."""
+    items = list(trades or [])
+    long_trades = [trade for trade in items if str(trade.get('position_direction') or '').lower() == 'long']
+    short_trades = [trade for trade in items if str(trade.get('position_direction') or '').lower() == 'short']
+    winners = [float(trade.get('pnl') or 0.0) for trade in items if float(trade.get('pnl') or 0.0) > 0]
+    losers = [float(trade.get('pnl') or 0.0) for trade in items if float(trade.get('pnl') or 0.0) < 0]
+    pnl_values = [float(trade.get('pnl') or 0.0) for trade in items]
+    bars = [float(trade.get('bar_len') or trade.get('span_bars') or 0.0) for trade in items]
+    count = len(items)
+    net = sum(pnl_values)
+    expectancy = (net / count) if count else 0.0
+    return {
+        "trade_count": count,
+        "winning_trades": len(winners),
+        "losing_trades": len(losers),
+        "long_trades": len(long_trades),
+        "short_trades": len(short_trades),
+        "gross_profit": round(sum(winners), 4),
+        "gross_loss": round(sum(losers), 4),
+        "net_pnl": round(net, 4),
+        "expectancy": round(expectancy, 4),
+        "avg_winner": round((sum(winners) / len(winners)) if winners else 0.0, 4),
+        "avg_loser": round((sum(losers) / len(losers)) if losers else 0.0, 4),
+        "avg_bars_held": round((sum(bars) / len(bars)) if bars else 0.0, 4),
+        "fill_model": (execution_assumptions or {}).get('fill_model', 'bar_close'),
+    }
+
+
 def _to_timestamp_ms(value) -> int:
     if not value:
         return 0
@@ -164,3 +187,44 @@ def _nearest_fill(fills: list, target_iso) -> dict | None:
         fills,
         key=lambda fill: abs((_to_timestamp_ms(fill.get('executed_at')) or 0) - target),
     )
+
+
+def _match_trade_fills(candidates: list, opened_iso, closed_iso) -> tuple[dict | None, dict | None]:
+    """Pick distinct entry/exit fills for a trade using time and side heuristics."""
+    entry_fill = _nearest_fill(candidates, opened_iso)
+    if not entry_fill:
+        return None, None
+
+    remaining = [fill for fill in candidates if fill is not entry_fill and int(fill.get('ref') or 0) != int(entry_fill.get('ref') or 0)]
+    preferred_exit_side = 'sell' if str(entry_fill.get('side') or '').lower() == 'buy' else 'buy'
+    side_filtered = [
+        fill for fill in remaining
+        if str(fill.get('side') or '').lower() == preferred_exit_side
+    ]
+    post_open_filtered = [
+        fill for fill in (side_filtered or remaining)
+        if (_to_timestamp_ms(fill.get('executed_at')) or 0) >= (_to_timestamp_ms(opened_iso) or 0)
+    ]
+    exit_fill = _nearest_fill(post_open_filtered or side_filtered or remaining, closed_iso)
+
+    if not exit_fill:
+        fallback = _nearest_fill(
+            [fill for fill in candidates if int(fill.get('ref') or 0) != int(entry_fill.get('ref') or 0)],
+            closed_iso,
+        )
+        exit_fill = fallback
+
+    return entry_fill, exit_fill
+
+
+def _match_confidence(entry_fill, exit_fill, candidates: list) -> tuple[str, str]:
+    candidate_count = len(candidates or [])
+    if not entry_fill and not exit_fill:
+        return 'none', 'No eligible fills matched this trade window.'
+    if entry_fill and exit_fill:
+        if int(entry_fill.get('ref') or 0) != int(exit_fill.get('ref') or 0):
+            return 'high', 'Entry and exit matched to distinct order refs.'
+        return 'medium', 'Entry and exit collapsed to the same ref; broker data was limited.'
+    if candidate_count <= 1:
+        return 'low', 'Only one candidate fill was available in the trade window.'
+    return 'medium', 'Trade was partially matched; one side relied on nearest-fill fallback.'
