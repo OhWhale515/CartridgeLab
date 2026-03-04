@@ -2789,6 +2789,18 @@ body.console-drop-armed #console-canvas {
   background: rgba(24, 32, 56, 0.64);
 }
 
+.trade-inspector-lifecycle-row {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(42, 246, 255, 0.08);
+  background: rgba(8, 20, 40, 0.34);
+  color: rgba(220, 245, 255, 0.82);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 1100px) {
   .trade-inspector {
     left: 98px;

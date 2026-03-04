@@ -629,6 +629,8 @@ async function openSystemPanel(mode) {
 
     if (mode === 'trade' && replayState.result?.run_id) {
         const assumptions = replayState.result.execution_assumptions || {};
+        const lifecycleCount = Array.isArray(replayState.result.order_lifecycle) ? replayState.result.order_lifecycle.length : 0;
+        const executionSummary = replayState.result.execution_summary || {};
         meta.textContent = [
             `RUN ID: ${replayState.result.run_id}`,
             `STRATEGY: ${replayState.result.strategy_name || 'unknown'}`,
@@ -637,6 +639,9 @@ async function openSystemPanel(mode) {
             `FILL POLICY: ${String(assumptions.fill_model || 'bar_close').toUpperCase()}`,
             `SPREAD: ${Number(assumptions.spread_bps || 0).toFixed(2)} bps`,
             `SLIPPAGE: ${Number(assumptions.slippage_bps || 0).toFixed(2)} bps`,
+            `ORDER LIFECYCLES: ${lifecycleCount}`,
+            `AVG EXEC: ${executionQualityLabel(executionSummary.avg_quality_bps || 0)}`,
+            `TOTAL COMM: ${Number(executionSummary.total_commission || 0).toFixed(2)}`,
         ].join('\n');
         return;
     }
@@ -659,7 +664,9 @@ async function openSystemPanel(mode) {
                 const ticker = run.ticker || 'n/a';
                 const ret = Number(run.total_return || 0).toFixed(2);
                 const dd = Number(run.max_drawdown || 0).toFixed(2);
-                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | ${run.run_id}`;
+                const exec = executionQualityLabel(run.avg_execution_quality_bps || 0);
+                const comm = Number(run.total_execution_commission || 0).toFixed(2);
+                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | EXEC ${exec} | COMM ${comm} | ${run.run_id}`;
             }).join('\n');
         } catch (error) {
             meta.textContent = `Run archive unavailable.\n${error.message}`;
@@ -1057,10 +1064,16 @@ function renderTradeInspector(result, index) {
     const exit = Number(detail.exit_price || trade.exit_price || 0);
     const requestedEntry = Number(detail.requested_entry_price || trade.requested_entry_price || 0);
     const requestedExit = Number(detail.requested_exit_price || trade.requested_exit_price || 0);
+    const entryGapBps = Number(detail.entry_fill_gap_bps ?? trade.entry_fill_gap_bps ?? 0);
+    const exitGapBps = Number(detail.exit_fill_gap_bps ?? trade.exit_fill_gap_bps ?? 0);
+    const entryQualityBps = Number(detail.entry_quality_bps ?? trade.entry_quality_bps ?? 0);
+    const exitQualityBps = Number(detail.exit_quality_bps ?? trade.exit_quality_bps ?? 0);
     const bars = Number(detail.span_bars ?? trade.bar_len ?? 0);
+    const direction = String(detail.position_direction || trade.position_direction || '').toUpperCase();
+    const executionDetail = tradeExecutionDetail(result, tradeNo, detail.entry_event, detail.exit_event);
     const outcome = pnl >= 0 ? 'Profit' : 'Risk';
 
-    setText('trade-inspector-title', `Trade ${tradeNo} | ${outcome}`);
+    setText('trade-inspector-title', `Trade ${tradeNo} | ${direction || 'TRADE'} | ${outcome}`);
     setText(
         'trade-inspector-summary',
         `${outcome} | Opened ${formatIsoShort(trade.opened_at)} | Closed ${formatIsoShort(trade.closed_at)} | Req/Filled ${requestedEntry ? requestedEntry.toFixed(2) : 'n/a'} -> ${entry ? entry.toFixed(2) : 'n/a'}`
@@ -1069,7 +1082,20 @@ function renderTradeInspector(result, index) {
     setText('trade-inspector-exit', exit ? exit.toFixed(2) : 'n/a');
     setText('trade-inspector-pnl', `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`);
     setText('trade-inspector-bars', String(bars || 0));
-    setText('trade-inspector-reason', detail.reason || 'Trade completed without a recorded explanation.');
+    setText(
+        'trade-inspector-reason',
+        `${detail.reason || 'Trade completed without a recorded explanation.'} Entry gap ${entryGapBps >= 0 ? '+' : ''}${entryGapBps.toFixed(2)} bps | Exit gap ${exitGapBps >= 0 ? '+' : ''}${exitGapBps.toFixed(2)} bps.`
+    );
+    setText(
+        'trade-inspector-exec',
+        `Execution | Entry requested ${requestedEntry ? requestedEntry.toFixed(2) : 'n/a'} -> filled ${entry ? entry.toFixed(2) : 'n/a'} (${executionQualityLabel(entryQualityBps)}) | Exit requested ${requestedExit ? requestedExit.toFixed(2) : 'n/a'} -> filled ${exit ? exit.toFixed(2) : 'n/a'} (${executionQualityLabel(exitQualityBps)})`
+    );
+    setText(
+        'trade-inspector-order',
+        `Orders | Entry ref ${executionDetail.entry_order?.ref ?? 'n/a'} ${String(executionDetail.entry_order?.order_type || 'n/a').toUpperCase()} [${formatStatusPath(executionDetail.entry_status_path)}] | Exit ref ${executionDetail.exit_order?.ref ?? 'n/a'} ${String(executionDetail.exit_order?.order_type || 'n/a').toUpperCase()} [${formatStatusPath(executionDetail.exit_status_path)}] | Comm ${Number(executionDetail.total_commission || 0).toFixed(2)}`
+    );
+    setText('trade-inspector-run', summarizeExecutionRun(result));
+    renderTradeLifecycleRows(executionDetail.lifecycle_rows || []);
 
     document.querySelectorAll('.trade-inspector-chip').forEach((chip, chipIndex) => {
         chip.classList.toggle('is-active', chipIndex === index);
@@ -1098,11 +1124,38 @@ function tradeDetails(result, tradeIndex) {
         exit_event: exit || null,
         entry_price: entry?.entry_price || exit?.entry_price || 0,
         requested_entry_price: entry?.requested_entry_price || exit?.requested_entry_price || 0,
+        entry_fill_gap_bps: entry?.entry_fill_gap_bps || exit?.entry_fill_gap_bps || 0,
+        entry_quality_bps: entry?.entry_quality_bps || exit?.entry_quality_bps || 0,
+        position_direction: entry?.position_direction || exit?.position_direction || '',
         exit_price: exit?.exit_price || entry?.exit_price || 0,
         requested_exit_price: exit?.requested_exit_price || entry?.requested_exit_price || 0,
+        exit_fill_gap_bps: exit?.exit_fill_gap_bps || entry?.exit_fill_gap_bps || 0,
+        exit_quality_bps: exit?.exit_quality_bps || entry?.exit_quality_bps || 0,
+        execution_detail: tradeExecutionDetail(result, tradeIndex, entry, exit),
         span_bars: exit?.span_bars ?? entry?.span_bars ?? 0,
         reason: exit?.reason || entry?.reason || '',
         entry_bar: entry?.bar_index ?? 0,
+    };
+}
+
+function tradeExecutionDetail(result, tradeIndex, entryEvent, exitEvent) {
+    const trade = result?.trades?.[Math.max(0, tradeIndex - 1)] || {};
+    const detail = trade.execution_detail || {};
+    const lifecycle = result?.order_lifecycle || [];
+    const entryRef = Number(detail.entry_order?.ref || trade.entry_order_ref || 0);
+    const exitRef = Number(detail.exit_order?.ref || trade.exit_order_ref || 0);
+    const entryOrder = detail.entry_order || lifecycle.find((item) => Number(item.ref || 0) === entryRef) || null;
+    const exitOrder = detail.exit_order || lifecycle.find((item) => Number(item.ref || 0) === exitRef) || null;
+    return {
+        entry_order: entryOrder,
+        exit_order: exitOrder,
+        total_commission: Number(detail.total_commission || ((entryOrder?.commission || 0) + (exitOrder?.commission || 0))),
+        entry_status_path: detail.entry_status_path || entryOrder?.status_path || [],
+        exit_status_path: detail.exit_status_path || exitOrder?.status_path || [],
+        lifecycle_rows: Array.isArray(detail.lifecycle_rows) && detail.lifecycle_rows.length
+            ? detail.lifecycle_rows
+            : [entryOrder, exitOrder].filter((row, index, items) => row && items.indexOf(row) === index),
+        position_direction: entryEvent?.position_direction || exitEvent?.position_direction || trade.position_direction || '',
     };
 }
 
@@ -1144,6 +1197,58 @@ function formatIsoShort(value) {
         return 'n/a';
     }
     return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+function executionQualityLabel(value) {
+    const quality = Number(value || 0);
+    const sign = quality >= 0 ? '+' : '';
+    const tone = quality > 0.01 ? 'better' : quality < -0.01 ? 'worse' : 'neutral';
+    return `${sign}${quality.toFixed(2)} bps ${tone}`;
+}
+
+function formatStatusPath(items) {
+    const path = Array.isArray(items) ? items : [];
+    return path.length ? path.join(' > ') : 'n/a';
+}
+
+function summarizeExecutionRun(result) {
+    const lifecycle = Array.isArray(result?.order_lifecycle) ? result.order_lifecycle : [];
+    if (!lifecycle.length) {
+        return 'Run execution summary unavailable.';
+    }
+    const qualities = lifecycle
+        .map((item) => Number(item.execution_quality_bps || 0))
+        .filter((value) => Number.isFinite(value));
+    const commissions = lifecycle
+        .map((item) => Number(item.commission || 0))
+        .filter((value) => Number.isFinite(value));
+    const avg = qualities.length ? (qualities.reduce((sum, value) => sum + value, 0) / qualities.length) : 0;
+    const worst = qualities.length ? Math.min(...qualities) : 0;
+    const totalCommission = commissions.reduce((sum, value) => sum + value, 0);
+    return `Run execution | Orders ${lifecycle.length} | Avg ${executionQualityLabel(avg)} | Worst ${executionQualityLabel(worst)} | Total comm ${totalCommission.toFixed(2)}`;
+}
+
+function renderTradeLifecycleRows(rows) {
+    const container = document.getElementById('trade-inspector-lifecycle');
+    if (!container) {
+        return;
+    }
+
+    const items = Array.isArray(rows) ? rows : [];
+    if (!items.length) {
+        container.innerHTML = '<div class="trade-inspector-lifecycle-row">No lifecycle rows for this trade.</div>';
+        return;
+    }
+
+    container.innerHTML = items.map((row) => `
+        <div class="trade-inspector-lifecycle-row">
+            REF ${row.ref ?? 'n/a'} | ${String(row.side || '').toUpperCase()} | ${String(row.order_type || '').toUpperCase()} | ${String(row.final_status || '').toUpperCase()}
+            <br />
+            Req ${row.requested_price ? Number(row.requested_price).toFixed(2) : 'n/a'} -> Fill ${row.filled_price ? Number(row.filled_price).toFixed(2) : 'n/a'} | ${executionQualityLabel(row.execution_quality_bps || 0)} | Comm ${Number(row.commission || 0).toFixed(2)}
+            <br />
+            Path: ${formatStatusPath(row.status_path || [])}
+        </div>
+    `).join('');
 }
 
 function appendReplayEvents(result) {

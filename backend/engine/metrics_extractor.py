@@ -6,6 +6,16 @@ into the structured metrics JSON returned to the Three.js frontend.
 import math
 from datetime import datetime
 
+from .order_model import (
+    build_execution_summary,
+    build_order_lifecycle,
+    build_trade_execution_detail,
+    execution_quality_bps,
+    index_order_lifecycle,
+    price_gap_bps,
+    safe_price,
+)
+
 
 def extract_metrics(strat, starting_cash: float, final_value: float, price_data=None) -> dict:
     """
@@ -79,9 +89,11 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
     # --- Equity Curve (reconstructed from price data + broker value tracking) ---
     equity_curve = _build_equity_curve(strat, price_data, starting_cash)
     order_ledger = _extract_order_log(strat)
+    order_lifecycle = build_order_lifecycle(order_ledger)
     trades = _extract_trade_log(strat, order_ledger)
     price_bars = _build_price_bars(price_data)
     replay_events = _build_replay_events(price_bars, trades)
+    execution_summary = build_execution_summary(order_lifecycle)
 
     # --- Sortino (approximation from returns) ---
     sortino = _approx_sortino(sharpe)
@@ -105,6 +117,8 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
         "annual_return": annual_return,
         "equity_curve": equity_curve,
         "order_ledger": order_ledger,
+        "order_lifecycle": order_lifecycle,
+        "execution_summary": execution_summary,
         "trades": trades,
         "price_bars": price_bars,
         "replay_events": replay_events,
@@ -177,6 +191,7 @@ def _enrich_trade_log(trades: list, order_ledger: list) -> list:
     if not trades:
         return []
 
+    lifecycle_by_ref = index_order_lifecycle(build_order_lifecycle(order_ledger))
     fills = [
         order for order in order_ledger
         if order.get('status') in {'completed', 'partial'} and abs(float(order.get('executed_size') or 0.0)) > 0
@@ -187,28 +202,54 @@ def _enrich_trade_log(trades: list, order_ledger: list) -> list:
     for trade in trades:
         opened_at = trade.get('opened_at')
         closed_at = trade.get('closed_at')
-        matching = [
+        window_fills = [
             fill for fill in fills
             if _between(fill.get('executed_at'), opened_at, closed_at)
         ]
-        if not matching:
-            matching = _nearest_fills(fills, opened_at, closed_at)
-
-        entry_fill = matching[0] if matching else None
-        exit_fill = matching[-1] if matching else None
+        candidates = window_fills or fills
+        entry_fill = _nearest_fill(candidates, opened_at)
+        remaining = [fill for fill in candidates if fill is not entry_fill]
+        preferred_exit_side = None
+        if entry_fill:
+            preferred_exit_side = 'sell' if str(entry_fill.get('side') or '').lower() == 'buy' else 'buy'
+        side_filtered = [
+            fill for fill in remaining
+            if str(fill.get('side') or '').lower() == preferred_exit_side
+        ] if preferred_exit_side else []
+        exit_fill = _nearest_fill(side_filtered or remaining or candidates, closed_at)
         record = dict(trade)
         if entry_fill:
-            record['entry_price'] = _safe_price(entry_fill.get('executed_price'))
-            record['requested_entry_price'] = _safe_price(entry_fill.get('created_price'))
+            record['entry_price'] = safe_price(entry_fill.get('executed_price'))
+            record['requested_entry_price'] = safe_price(entry_fill.get('created_price'))
             record['entry_order_ref'] = entry_fill.get('ref')
             record['entry_order_type'] = entry_fill.get('order_type')
             record['entry_side'] = entry_fill.get('side')
+            record['position_direction'] = 'long' if str(record.get('entry_side') or '').lower() == 'buy' else 'short'
+            record['entry_fill_gap_bps'] = price_gap_bps(
+                record.get('requested_entry_price'),
+                record.get('entry_price'),
+            )
+            record['entry_quality_bps'] = execution_quality_bps(
+                record.get('requested_entry_price'),
+                record.get('entry_price'),
+                record.get('entry_side'),
+            )
         if exit_fill:
-            record['exit_price'] = _safe_price(exit_fill.get('executed_price'))
-            record['requested_exit_price'] = _safe_price(exit_fill.get('created_price'))
+            record['exit_price'] = safe_price(exit_fill.get('executed_price'))
+            record['requested_exit_price'] = safe_price(exit_fill.get('created_price'))
             record['exit_order_ref'] = exit_fill.get('ref')
             record['exit_order_type'] = exit_fill.get('order_type')
             record['exit_side'] = exit_fill.get('side')
+            record['exit_fill_gap_bps'] = price_gap_bps(
+                record.get('requested_exit_price'),
+                record.get('exit_price'),
+            )
+            record['exit_quality_bps'] = execution_quality_bps(
+                record.get('requested_exit_price'),
+                record.get('exit_price'),
+                record.get('exit_side'),
+            )
+        record['execution_detail'] = build_trade_execution_detail(record, lifecycle_by_ref)
         enriched.append(record)
 
     return enriched
@@ -233,13 +274,13 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
         profitable = pnl >= 0
         open_bar_index = _nearest_bar_index(bar_timestamps, opened_at)
         close_bar_index = _nearest_bar_index(bar_timestamps, closed_at)
-        entry_price = _safe_price(
+        entry_price = safe_price(
             trade.get("entry_price"),
             trade.get("open_price"),
             trade.get("opened_price"),
             trade.get("price_in"),
         )
-        exit_price = _safe_price(
+        exit_price = safe_price(
             trade.get("exit_price"),
             trade.get("close_price"),
             trade.get("closed_price"),
@@ -247,9 +288,9 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
         )
         span_bars = max(close_bar_index - open_bar_index, 0)
         if not entry_price and 0 <= open_bar_index < len(price_bars):
-            entry_price = _safe_price(price_bars[open_bar_index].get("close"))
+            entry_price = safe_price(price_bars[open_bar_index].get("close"))
         if not exit_price and 0 <= close_bar_index < len(price_bars):
-            exit_price = _safe_price(price_bars[close_bar_index].get("close"))
+            exit_price = safe_price(price_bars[close_bar_index].get("close"))
 
         events.append({
             "type": "buy" if profitable else "engage",
@@ -257,8 +298,10 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
             "bar_index": open_bar_index,
             "trade_index": trade_index,
             "pnl": pnl,
+            "position_direction": str(trade.get("position_direction") or ""),
             "entry_price": entry_price,
-            "requested_entry_price": _safe_price(trade.get("requested_entry_price")),
+            "requested_entry_price": safe_price(trade.get("requested_entry_price")),
+            "entry_quality_bps": safe_price(trade.get("entry_quality_bps")),
             "exit_price": exit_price,
             "reason": "Breakout or pullback entry confirmed. Position armed." if profitable else "Entry armed under pressure. Risk control is active.",
             "outcome": "profit" if profitable else "risk",
@@ -270,10 +313,13 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
             "bar_index": close_bar_index,
             "trade_index": trade_index,
             "pnl": pnl,
+            "position_direction": str(trade.get("position_direction") or ""),
             "entry_price": entry_price,
-            "requested_entry_price": _safe_price(trade.get("requested_entry_price")),
+            "requested_entry_price": safe_price(trade.get("requested_entry_price")),
+            "entry_quality_bps": safe_price(trade.get("entry_quality_bps")),
             "exit_price": exit_price,
-            "requested_exit_price": _safe_price(trade.get("requested_exit_price")),
+            "requested_exit_price": safe_price(trade.get("requested_exit_price")),
+            "exit_quality_bps": safe_price(trade.get("exit_quality_bps")),
             "reason": "Profit captured. Trend follow-through paid out." if profitable else "Risk exit triggered. The strategy cut the position.",
             "outcome": "profit" if profitable else "risk",
             "span_bars": span_bars,
@@ -343,17 +389,18 @@ def _nearest_fills(fills: list, opened_iso, closed_iso) -> list:
     return sorted(ranked[:2], key=lambda fill: fill.get('executed_at') or '')
 
 
+def _nearest_fill(fills: list, target_iso) -> dict | None:
+    target = _to_timestamp_ms(target_iso)
+    if not fills:
+        return None
+    if not target:
+        return fills[0]
+    return min(
+        fills,
+        key=lambda fill: abs((_to_timestamp_ms(fill.get('executed_at')) or 0) - target),
+    )
+
+
 def _approx_sortino(sharpe: float) -> float:
     """Approximate Sortino from Sharpe (Sortino ≈ Sharpe * sqrt(2) for symmetric distributions)."""
     return round(sharpe * 1.414, 4) if sharpe else 0.0
-
-
-def _safe_price(*values) -> float:
-    for value in values:
-        try:
-            if value is None:
-                continue
-            return round(float(value), 4)
-        except Exception:
-            continue
-    return 0.0
