@@ -82,6 +82,7 @@ const consoleGroup = buildConsole(scene);
 const chartWorld = initChartWorld(scene);
 const replayLane = initReplayLane(document.getElementById('replay-lane'));
 applyThemeBranding();
+setGameShellActive(false);
 setHeroIdle(true);
 setText('brand-hero-subtitle', 'Rank: Apex | Status: Ready | Awaiting deployment.');
 setConsolePrompt('SYSTEM READY', 'Select a cartridge to begin.');
@@ -97,6 +98,7 @@ async function onFileDropped(file) {
     await dismissSplashScreen();
     playSound('insert');
     setMenuCollapsed(false);
+    setGameShellActive(false);
     setHeroIdle(false);
     armConsoleForSelection(file?.name || 'Custom cartridge');
     showRunConfig(file);
@@ -105,6 +107,7 @@ async function onFileDropped(file) {
 async function onCartridgeSelected(cartridge) {
     await dismissSplashScreen();
     setMenuCollapsed(false);
+    setGameShellActive(false);
     setHeroIdle(false);
     armConsoleForSelection(cartridge?.title || cartridge?.name || 'Trading cartridge');
     showRunConfig(null, cartridge);
@@ -166,6 +169,7 @@ function applyRunConfigPreset(file, preset) {
 
 async function runWith(file, presetFilename, ticker, start, end, cash) {
     await playInsertTransition(presetFilename || file?.name || 'Custom cartridge');
+    setGameShellActive(true);
     showLoading(true, 'Initializing Cerebro...');
     setHudStage('Running simulation');
     resetReplay();
@@ -337,6 +341,26 @@ function setHeroIdle(isIdle) {
 
     hero.classList.toggle('brand-hero-idle', isIdle);
     hero.classList.toggle('brand-hero-compact', !isIdle);
+}
+
+function setGameShellActive(active) {
+    [
+        document.getElementById('brand-hero'),
+        document.getElementById('utility-cluster'),
+        document.getElementById('market-stage'),
+        document.getElementById('telemetry-bar'),
+    ].forEach((node) => {
+        if (!node) {
+            return;
+        }
+        node.classList.toggle('hidden', !active);
+    });
+
+    if (!active) {
+        document.getElementById('strategy-badge')?.classList.add('hidden');
+        document.getElementById('hud')?.classList.add('hidden');
+        document.getElementById('replay-panel')?.classList.add('hidden');
+    }
 }
 
 function setConsolePrompt(title, subtitle) {
