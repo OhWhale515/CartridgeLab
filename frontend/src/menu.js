@@ -49,6 +49,7 @@ function appendGroup(list, title, cartridges, onCartridgeSelected) {
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'cartridge-item';
+        item.draggable = true;
         const label = cartridge.title || cartridge.name;
         const meta = cartridge.theme || `${cartridge.type.toUpperCase()} CARTRIDGE`;
         const metaClass = cartridge.theme ? 'cartridge-meta' : 'cartridge-meta cartridge-meta-muted';
@@ -60,6 +61,14 @@ function appendGroup(list, title, cartridges, onCartridgeSelected) {
             </span>
         `;
         item.addEventListener('click', () => onCartridgeSelected(cartridge));
+        item.addEventListener('dragstart', (event) => {
+            event.dataTransfer.effectAllowed = 'copy';
+            event.dataTransfer.setData('application/x-cartridgelab', JSON.stringify(cartridge));
+            document.body.classList.add('console-drop-armed');
+        });
+        item.addEventListener('dragend', () => {
+            document.body.classList.remove('console-drop-armed');
+        });
         body.appendChild(item);
     });
 

@@ -21,7 +21,7 @@ let splashBooting = false;
 const replayState = {
     timer: null,
     paused: false,
-    speed: 2,
+    speed: 0.5,
     step: 0,
     result: null,
     eventsShown: 0,
@@ -92,6 +92,7 @@ initCartridgeSystem(onFileDropped);
 initMenuDock();
 initSplashScreen();
 initReplayControls();
+initConsoleGameDrop();
 
 // ─── Event Handlers ───────────────────────────────────────────────────────────
 async function onFileDropped(file) {
@@ -169,7 +170,6 @@ function applyRunConfigPreset(file, preset) {
 
 async function runWith(file, presetFilename, ticker, start, end, cash) {
     await playInsertTransition(presetFilename || file?.name || 'Custom cartridge');
-    setGameShellActive(true);
     showLoading(true, 'Initializing Cerebro...');
     setHudStage('Running simulation');
     resetReplay();
@@ -179,12 +179,15 @@ async function runWith(file, presetFilename, ticker, start, end, cash) {
     try {
         const result = await runBacktest(file, presetFilename, ticker, start, end, cash);
         showLoading(false);
+        hideLaunchTransition();
+        setGameShellActive(true);
         playSound('reveal');
 
         startReplay(result, ticker, start, end);
 
     } catch (err) {
         showLoading(false);
+        hideLaunchTransition();
         setHudStage('Run failed');
         setReplayStatus('Run failed before replay.');
         console.error('[CartridgeLab]', err);
@@ -221,11 +224,10 @@ async function playInsertTransition(label) {
         animateConsoleInsert(phase);
         await wait(phase.waitMs);
     }
-    overlay.classList.remove('is-visible');
-    await wait(180);
-    overlay.classList.add('hidden');
-    overlay.classList.remove('insert-mode');
-    setLaunchTransitionState('Awaiting cartridge lock...', 0);
+    if (sub) {
+        sub.textContent = 'Launching trading game...';
+    }
+    setLaunchTransitionState('Mounting market arena...', 100);
     animateConsoleInsert({
         scale: 1,
         lift: 0,
@@ -258,6 +260,20 @@ function animateConsoleInsert({ scale = 1, lift = 0, light = 0.8, slotGlow = 0.1
     consoleState.slotGlowTarget = slotGlow;
     consoleState.stripTarget = strip;
     consoleState.insertTarget = insert;
+}
+
+function hideLaunchTransition() {
+    const overlay = document.getElementById('launch-transition');
+    if (!overlay) {
+        return;
+    }
+
+    overlay.classList.remove('is-visible');
+    window.setTimeout(() => {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('insert-mode');
+        setLaunchTransitionState('Awaiting cartridge lock...', 0);
+    }, 180);
 }
 
 function initMenuDock() {
@@ -363,6 +379,66 @@ function setGameShellActive(active) {
     }
 }
 
+function initConsoleGameDrop() {
+    const canvasTarget = document.getElementById('console-canvas');
+    const promptTarget = document.getElementById('console-room-prompt');
+    const targets = [canvasTarget, promptTarget].filter(Boolean);
+    if (!targets.length) {
+        return;
+    }
+
+    const readState = () => {
+        animateConsoleInsert({
+            scale: 1.01,
+            lift: 0.02,
+            light: 1.45,
+            slotGlow: 0.66,
+            strip: 0.92,
+            insert: 0.04,
+        });
+        setConsolePrompt('DROP TO INSERT', 'Release the cartridge over the console.');
+        document.body.classList.add('console-drop-armed');
+    };
+
+    const clearState = () => {
+        document.body.classList.remove('console-drop-armed');
+    };
+
+    targets.forEach((target) => {
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            target.addEventListener(eventName, (event) => {
+                const types = Array.from(event.dataTransfer?.types || []);
+                if (!types.includes('application/x-cartridgelab')) {
+                    return;
+                }
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                readState();
+            });
+        });
+
+        target.addEventListener('dragleave', () => {
+            clearState();
+        });
+
+        target.addEventListener('drop', async (event) => {
+            const payload = event.dataTransfer?.getData('application/x-cartridgelab');
+            if (!payload) {
+                return;
+            }
+
+            event.preventDefault();
+            clearState();
+            try {
+                const cartridge = JSON.parse(payload);
+                await onCartridgeSelected(cartridge);
+            } catch (error) {
+                console.error('[CartridgeLab]', error);
+            }
+        });
+    });
+}
+
 function setConsolePrompt(title, subtitle) {
     setText('console-room-title', title);
     setText('console-room-sub', subtitle);
@@ -444,10 +520,17 @@ function initReplayControls() {
 
     if (speed) {
         speed.addEventListener('click', () => {
-            replayState.speed = replayState.speed === 1 ? 2 : replayState.speed === 2 ? 4 : 1;
+            replayState.speed = replayState.speed === 0.5 ? 1 :
+                replayState.speed === 1 ? 2 :
+                    replayState.speed === 2 ? 4 :
+                        0.5;
             speed.textContent = `${replayState.speed}X`;
         });
     }
+}
+
+function replayDelayForSpeed() {
+    return Math.max(45, Math.round(180 / Math.max(replayState.speed || 1, 0.25)));
 }
 
 function startReplay(result, ticker, start, end) {
@@ -485,17 +568,17 @@ function startReplay(result, ticker, start, end) {
             return;
         }
 
-        advanceReplayBy(replayState.speed, ticker);
+        advanceReplayBy(1, ticker);
 
         if (replayState.step >= getReplayTotalSteps()) {
             finishReplay(result, ticker, start, end);
             return;
         }
 
-        replayState.timer = window.setTimeout(stepReplay, 90);
+        replayState.timer = window.setTimeout(stepReplay, replayDelayForSpeed());
     };
 
-    replayState.timer = window.setTimeout(stepReplay, 120);
+    replayState.timer = window.setTimeout(stepReplay, replayDelayForSpeed());
 }
 
 function finishReplay(result, ticker, start, end) {
@@ -1105,9 +1188,12 @@ function updateConsoleScene(elapsed) {
 function showLoading(show, message = '') {
     const screen = document.getElementById('loading-screen');
     if (show) {
-        screen.classList.remove('hidden');
-        document.getElementById('loading-sub').textContent = message;
-        animateLoadingBar();
+        screen.classList.add('hidden');
+        const sub = document.getElementById('launch-transition-sub');
+        if (sub && message) {
+            sub.textContent = message;
+        }
+        setLaunchTransitionState('Building replay stream...', 100);
     } else {
         screen.classList.add('hidden');
     }

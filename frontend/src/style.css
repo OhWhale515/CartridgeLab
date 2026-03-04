@@ -749,7 +749,7 @@ html, body {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  cursor: pointer;
+  cursor: grab;
   background: rgba(10, 22, 42, 0.32);
   font-family: var(--font-pixel);
   font-size: 1.1rem;
@@ -758,6 +758,9 @@ html, body {
   text-align: left;
   appearance: none;
   transition: all 0.15s;
+}
+.cartridge-item:active {
+  cursor: grabbing;
 }
 .cartridge-item:hover {
   border-color: rgba(255,213,106,0.45);
@@ -2509,4 +2512,16 @@ html, body {
 
 #stage-signal[data-signal='sl'] {
   color: #ff5f49;
+}
+
+body.console-drop-armed .console-room-prompt {
+  border-color: rgba(42, 246, 255, 0.38);
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.34),
+    0 0 24px rgba(42, 246, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 213, 106, 0.06);
+}
+
+body.console-drop-armed #console-canvas {
+  filter: saturate(1.08) brightness(1.04);
 }
