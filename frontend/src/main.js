@@ -27,6 +27,15 @@ const replayState = {
     eventsShown: 0,
     checkpointsShown: 0,
 };
+const consoleState = {
+    insertTarget: 0,
+    insertDisplay: 0,
+    shellScaleTarget: 1,
+    shellLiftTarget: 0,
+    ledTarget: 0.7,
+    slotGlowTarget: 0.08,
+    stripTarget: 0.35,
+};
 
 // ─── Scene Setup ─────────────────────────────────────────────────────────────
 const canvas = document.getElementById('console-canvas');
@@ -75,6 +84,7 @@ const replayLane = initReplayLane(document.getElementById('replay-lane'));
 applyThemeBranding();
 setHeroIdle(true);
 setText('brand-hero-subtitle', 'Rank: Apex | Status: Ready | Awaiting deployment.');
+setConsolePrompt('SYSTEM READY', 'Select a cartridge to begin.');
 initHUD();
 initMenu(onCartridgeSelected);
 initCartridgeSystem(onFileDropped);
@@ -88,6 +98,7 @@ async function onFileDropped(file) {
     playSound('insert');
     setMenuCollapsed(false);
     setHeroIdle(false);
+    armConsoleForSelection(file?.name || 'Custom cartridge');
     showRunConfig(file);
 }
 
@@ -95,6 +106,7 @@ async function onCartridgeSelected(cartridge) {
     await dismissSplashScreen();
     setMenuCollapsed(false);
     setHeroIdle(false);
+    armConsoleForSelection(cartridge?.title || cartridge?.name || 'Trading cartridge');
     showRunConfig(null, cartridge);
 }
 
@@ -157,6 +169,7 @@ async function runWith(file, presetFilename, ticker, start, end, cash) {
     showLoading(true, 'Initializing Cerebro...');
     setHudStage('Running simulation');
     resetReplay();
+    setConsolePrompt('GAME BOOT', 'Launching market arena...');
     playSound('running');
 
     try {
@@ -180,9 +193,9 @@ async function playInsertTransition(label) {
     const title = document.getElementById('launch-transition-title');
     const sub = document.getElementById('launch-transition-sub');
     const phases = [
-        { sub: 'Inserting cartridge...', detail: 'Reading cartridge contacts...', progress: 22, scale: 0.92, light: 1.55, waitMs: 260 },
-        { sub: 'Locking into console bus...', detail: 'Syncing memory rails...', progress: 58, scale: 1.04, light: 1.95, waitMs: 260 },
-        { sub: 'Cartridge verified.', detail: 'Routing control to game core...', progress: 100, scale: 1.01, light: 2.2, waitMs: 220 },
+        { sub: 'Inserting cartridge...', detail: 'Reading cartridge contacts...', progress: 22, scale: 0.95, lift: -0.03, light: 1.55, slotGlow: 0.22, strip: 0.46, insert: 0.24, waitMs: 260 },
+        { sub: 'Locking into console bus...', detail: 'Syncing memory rails...', progress: 58, scale: 1.02, lift: 0.03, light: 1.95, slotGlow: 0.56, strip: 0.8, insert: 0.68, waitMs: 260 },
+        { sub: 'Cartridge verified.', detail: 'Routing control to game core...', progress: 100, scale: 1.01, lift: 0.01, light: 2.2, slotGlow: 0.88, strip: 1.05, insert: 1, waitMs: 220 },
     ];
     if (!overlay) {
         return;
@@ -194,13 +207,14 @@ async function playInsertTransition(label) {
     if (title) {
         title.textContent = String(label || 'Trading cartridge').replace(/[_-]+/g, ' ').toUpperCase();
     }
+    setConsolePrompt('INSERTING GAME', 'Seating cartridge into the console bus.');
     playSound('insert');
     for (const phase of phases) {
         if (sub) {
             sub.textContent = phase.sub;
         }
         setLaunchTransitionState(phase.detail, phase.progress);
-        animateConsoleInsert(phase.scale, phase.light);
+        animateConsoleInsert(phase);
         await wait(phase.waitMs);
     }
     overlay.classList.remove('is-visible');
@@ -208,7 +222,14 @@ async function playInsertTransition(label) {
     overlay.classList.add('hidden');
     overlay.classList.remove('insert-mode');
     setLaunchTransitionState('Awaiting cartridge lock...', 0);
-    animateConsoleInsert(1, 0.8);
+    animateConsoleInsert({
+        scale: 1,
+        lift: 0,
+        light: 1.1,
+        slotGlow: 0.46,
+        strip: 0.72,
+        insert: 1,
+    });
 }
 
 function setLaunchTransitionState(message, progress) {
@@ -222,17 +243,17 @@ function setLaunchTransitionState(message, progress) {
     }
 }
 
-function animateConsoleInsert(scaleY, ledIntensity) {
+function animateConsoleInsert({ scale = 1, lift = 0, light = 0.8, slotGlow = 0.12, strip = 0.35, insert = 0 }) {
     if (!consoleGroup) {
         return;
     }
 
-    consoleGroup.scale.y = scaleY;
-    consoleGroup.position.y = scaleY < 1 ? -0.06 : scaleY > 1 ? 0.04 : 0;
-    const led = consoleGroup?.userData?.powerLED;
-    if (led?.material) {
-        led.material.emissiveIntensity = ledIntensity;
-    }
+    consoleState.shellScaleTarget = scale;
+    consoleState.shellLiftTarget = lift;
+    consoleState.ledTarget = light;
+    consoleState.slotGlowTarget = slotGlow;
+    consoleState.stripTarget = strip;
+    consoleState.insertTarget = insert;
 }
 
 function initMenuDock() {
@@ -318,6 +339,27 @@ function setHeroIdle(isIdle) {
     hero.classList.toggle('brand-hero-compact', !isIdle);
 }
 
+function setConsolePrompt(title, subtitle) {
+    setText('console-room-title', title);
+    setText('console-room-sub', subtitle);
+}
+
+function armConsoleForSelection(label) {
+    const friendly = String(label || 'Trading cartridge')
+        .replace(/\.[^.]+$/, '')
+        .replace(/[_-]+/g, ' ')
+        .toUpperCase();
+    setConsolePrompt('CARTRIDGE SELECTED', `Ready to load ${friendly}. Press play to mount.`);
+    animateConsoleInsert({
+        scale: 1,
+        lift: 0,
+        light: 1.15,
+        slotGlow: 0.26,
+        strip: 0.52,
+        insert: 0.08,
+    });
+}
+
 function setHudStage(message) {
     const node = document.getElementById('hud-stage');
     if (!node) {
@@ -399,6 +441,7 @@ function startReplay(result, ticker, start, end) {
 
     setMenuCollapsed(true);
     setHeroIdle(false);
+    setConsolePrompt('SIMULATION LIVE', `${result.strategy_name} is now running on ${ticker}.`);
     initializeMarketStage(result, ticker);
     updateTradeTelemetry(result, ticker, 0);
     appendChatMessage(`System: ${result.strategy_name} deployed on ${ticker}.`);
@@ -449,6 +492,7 @@ function finishReplay(result, ticker, start, end) {
     updateMarketStageFrame(result, (result.price_bars || []).length || replayState.step);
     updateTradeTelemetry(result, ticker, (result.price_bars || []).length || replayState.step);
     setReplayStatus(buildReplayOutcome(result));
+    setConsolePrompt('RUN COMPLETE', buildReplayOutcome(result));
     appendChatMessage(`System: ${buildReplayOutcome(result)}`);
     triggerResultReveal();
 }
@@ -460,6 +504,15 @@ function resetReplay() {
     replayState.checkpointsShown = 0;
     replayState.result = null;
     replayState.paused = false;
+    setConsolePrompt('SYSTEM READY', 'Select a cartridge to begin.');
+    animateConsoleInsert({
+        scale: 1,
+        lift: 0,
+        light: 0.8,
+        slotGlow: 0.08,
+        strip: 0.35,
+        insert: 0,
+    });
     const panel = document.getElementById('replay-panel');
     if (panel) {
         panel.classList.add('hidden');
@@ -975,15 +1028,54 @@ function wait(ms) {
 }
 
 function pulseBootLight(targetIntensity) {
-    const led = consoleGroup?.userData?.powerLED;
-    if (!led?.material) {
+    consoleState.ledTarget = targetIntensity;
+    consoleState.slotGlowTarget = Math.max(consoleState.slotGlowTarget, targetIntensity * 0.18);
+    consoleState.stripTarget = Math.max(consoleState.stripTarget, targetIntensity * 0.28);
+    window.setTimeout(() => {
+        consoleState.ledTarget = Math.max(consoleState.ledTarget, 0.7);
+    }, 180);
+}
+
+function updateConsoleScene(elapsed) {
+    if (!consoleGroup) {
         return;
     }
 
-    led.material.emissiveIntensity = targetIntensity;
-    window.setTimeout(() => {
-        led.material.emissiveIntensity = 0.7;
-    }, 180);
+    consoleState.insertDisplay += (consoleState.insertTarget - consoleState.insertDisplay) * 0.14;
+    consoleGroup.scale.y += (consoleState.shellScaleTarget - consoleGroup.scale.y) * 0.12;
+    consoleGroup.position.y += (consoleState.shellLiftTarget - consoleGroup.position.y) * 0.12;
+
+    const led = consoleGroup?.userData?.powerLED;
+    if (led?.material) {
+        const idlePulse = 0.58 + Math.sin(elapsed * 1.5) * 0.18;
+        led.material.emissiveIntensity += ((Math.max(idlePulse, consoleState.ledTarget)) - led.material.emissiveIntensity) * 0.14;
+    }
+
+    const slotGlow = consoleGroup?.userData?.slotGlow;
+    if (slotGlow?.material) {
+        const target = consoleState.slotGlowTarget + Math.sin(elapsed * 2.2) * 0.03;
+        slotGlow.material.emissiveIntensity += (target - slotGlow.material.emissiveIntensity) * 0.14;
+        slotGlow.material.opacity = Math.min(1, 0.35 + slotGlow.material.emissiveIntensity * 0.45);
+    }
+
+    const frontStrip = consoleGroup?.userData?.frontStrip;
+    if (frontStrip?.material) {
+        const target = consoleState.stripTarget + Math.sin(elapsed * 1.9) * 0.03;
+        frontStrip.material.emissiveIntensity += (target - frontStrip.material.emissiveIntensity) * 0.12;
+    }
+
+    const cartridge = consoleGroup?.userData?.cartridge;
+    if (cartridge) {
+        const inserted = consoleState.insertDisplay;
+        cartridge.position.y = 2.12 - inserted * 0.76 + Math.sin(elapsed * 2 + inserted * 4) * 0.01;
+        cartridge.position.z = 0.55 - inserted * 0.82;
+        cartridge.rotation.x = -0.16 + inserted * 0.14;
+        cartridge.rotation.z = Math.sin(elapsed * 1.6) * 0.01 * (1 - inserted);
+        const labelMesh = cartridge.children[1];
+        if (labelMesh?.material) {
+            labelMesh.material.emissiveIntensity = 0.2 + inserted * 0.7;
+        }
+    }
 }
 
 function showLoading(show, message = '') {
@@ -1022,12 +1114,7 @@ function animate() {
     const elapsed = clock.getElapsedTime();
 
     controls.update();
-
-    // Breathe the console power LED
-    if (consoleGroup.userData.powerLED) {
-        consoleGroup.userData.powerLED.material.emissiveIntensity =
-            0.6 + Math.sin(elapsed * 1.5) * 0.4;
-    }
+    updateConsoleScene(elapsed);
 
     renderer.render(scene, camera);
 }
