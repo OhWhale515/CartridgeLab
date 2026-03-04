@@ -6,27 +6,30 @@ This document maintains a running history of what has been built, major changes,
 
 ## Current State
 
-**Version**: 0.1.0
-**Last Updated**: 2026-03-02
-**Status**: Active Development — Initial Scaffold
+**Version**: 0.2.0
+**Last Updated**: 2026-03-04
+**Status**: Active Development — Sprint 2 (Immersion & Depth)
 
 ### What's Working
 
-- Project architecture fully designed (see `implementation_plan.md` in brain artifacts)
-- 5 founding Architecture Decision Records written (`decisions.md`)
-- Full directory structure scaffolded
-- Sample cartridge strategies designed
+- Backend Flask API fully operational (`/api/health`, `/api/cartridges`, `/api/run`)
+- Backtrader Cerebro runner + strategy loader + PineScript/MQL adapters
+- Frontend Three.js scene with high-fidelity SNES/PS1 console model
+- GSAP cartridge insertion animations with dynamic file-type color themes
+- Splash screen, CRT overlay, retro menu system
+- End-to-end backtest loop confirmed via browser testing
+- Deep research document covering all founding figures and technologies
 
 ### Known Issues
 
-- Backend Flask + Backtrader engine not yet implemented
-- Frontend Three.js scene not yet built
-- PineScript and MQL adapters not yet coded
-- Git remote not yet configured
+- HUD deeply nested metrics formatting needs refinement
+- 3D equity terrain (ChartWorld) is still basic
+- `exec()` sandbox not yet hardened for untrusted inputs
+- PineScript adapter needs unit test coverage
 
 ### In Progress
 
-- Full project scaffold + initial commit (Sprint 1, Day 1)
+- Sprint 2: ChartWorld 3D terrain, CRT post-processing, metrics depth
 
 ---
 
@@ -96,6 +99,9 @@ Communication: REST (`POST /api/run`). Future: WebSocket for streaming progress.
 ## Major Milestones
 
 - **2026-03-02**: Project conceived and architected — initial commit
+- **2026-03-03**: Backend engine operational, frontend scaffold complete
+- **2026-03-04**: High-fidelity 3D console, GSAP animations, deep research dive completed
+- **2026-03-04**: Sprint 1 closed, Sprint 2 (Immersion & Depth) opened
 
 ---
 
@@ -138,17 +144,19 @@ Communication: REST (`POST /api/run`). Future: WebSocket for streaming progress.
 
 Use this section as the canonical restart point for the next session.
 
-### What Was Completed
+### What Was Completed (Sprint 1)
 
-- Full end-to-end integration mapping from backend `app.py` backtest engine to the frontend Three.js + PixiJS UI.
-- Browser test confirmed simulated backtests return metrics correctly and render on the screen.
-- High-fidelity 3D Console built and integrated into the scene.
-- Cartridge selection triggers a detailed GSAP drop-and-lock animation before backtesting begins.
+- Full end-to-end integration: backend Backtrader engine → Flask API → frontend Three.js + PixiJS UI
+- Browser testing confirmed simulated backtests return correct metrics
+- High-fidelity 3D Console (SNES/PS1 hybrid) with ribbed vents, dynamic lighting, controller ports
+- GSAP physics-based cartridge insertion animations with file-type color theming
+- Deep research dive covering Jim Simons, Gunpei Yokoi, Shigeru Miyamoto, Yoshio Sakamoto, Backtrader internals, PineScript adapters, Three.js terrain, and quantitative metrics
+- See `deep_research.md` for the full research report
 
-### Exact Next Step
+### Sprint 2 Priorities (In Order)
 
-- Deepen the **ChartWorld** 3D terrain rendering based on the equity curve.
-- Harden the Python `exec()` sandbox in `cerebro_runner.py` or `strategy_loader.py` to securely handle user strategy files.
-- Refine the PineScript regex adapter to ensure all `ta.*` methods translate correctly into Backtrader indicators.
-
-
+1. **ChartWorld 3D Terrain** — PlaneGeometry vertex displacement, green/red coloring, trade markers, camera fly-through
+2. **CRT Post-Processing** — EffectComposer + UnrealBloomPass + GLSL scanline shader
+3. **Metrics Depth** — Sortino, Calmar, Kelly, Profit Factor in `metrics_extractor.py` + HUD
+4. **PineScript Adapter Hardening** — Unit tests for each `ta.*` pattern
+5. **Sandbox Hardening** — Restrict `exec()` namespace, add timeout, block dangerous imports

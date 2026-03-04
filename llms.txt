@@ -5,7 +5,7 @@
 ## Project Overview
 
 **Tech Stack**: Three.js (WebGL), Vite, Python/Flask, Backtrader, yfinance, GSAP, Web Audio API
-**Status**: Active Development — v0.1.0
+**Status**: Active Development — v0.2.0 (Sprint 2: Immersion & Depth)
 **Location**: `E:\Sterling Storage\CartridgeLab`
 **Purpose**: A revolutionary backtesting UX for traders using Python, PineScript, and MQL strategies. The backtesting engine is the console. Your strategy file is the cartridge. Insert it and play.
 
@@ -23,7 +23,10 @@ Project history and founding context. Contains the design DNA (Jim Simons, Gunpe
 5 founding ADRs: Console-Cartridge paradigm (ADR-001), Backtrader engine (ADR-002), Three.js/Vite (ADR-003), file support scope (ADR-004), yfinance data (ADR-005).
 
 ### tasks.md
-Sprint 1 tasks with acceptance criteria. Backend engine + Three.js console scene are the primary focus.
+Sprint 1 (complete) and Sprint 2 (active) task breakdown with acceptance criteria.
+
+### deep_research.md
+Extensive research on founding figures (Jim Simons, Gunpei Yokoi, Shigeru Miyamoto, Yoshio Sakamoto), technology deep dives (Backtrader, PineScript-to-Python, Three.js terrain, quantitative metrics), and systematic reasoning for Sprint 2 priorities.
 
 ---
 
@@ -168,6 +171,6 @@ E:\Sterling Storage\CartridgeLab\
 
 ---
 
-**Last Updated**: 2026-03-02
-**Version**: 0.1.0
+**Last Updated**: 2026-03-04
+**Version**: 0.2.0
 **Inspired by**: Jim Simons, Gunpei Yokoi, Shigeru Miyamoto, Yoshio Sakamoto
