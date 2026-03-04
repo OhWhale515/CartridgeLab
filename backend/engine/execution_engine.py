@@ -43,17 +43,19 @@ def enrich_trade_log(trades: list, order_ledger: list, lifecycle_by_ref: dict | 
         if order.get('status') in {'completed', 'partial'} and abs(float(order.get('executed_size') or 0.0)) > 0
     ]
     fills.sort(key=lambda item: item.get('executed_at') or '')
+    available_fills = list(fills)
 
     enriched = []
     for trade in trades:
         opened_at = trade.get('opened_at')
         closed_at = trade.get('closed_at')
         window_fills = [
-            fill for fill in fills
+            fill for fill in available_fills
             if _between(fill.get('executed_at'), opened_at, closed_at)
         ]
-        candidates = window_fills or fills
-        entry_fill, exit_fill = _match_trade_fills(candidates, opened_at, closed_at)
+        candidates = window_fills or available_fills
+        fallback_pool = [fill for fill in available_fills if fill not in candidates]
+        entry_fill, exit_fill = _match_trade_fills(candidates, opened_at, closed_at, fallback_pool)
         record = dict(trade)
         if entry_fill:
             record['entry_price'] = safe_price(entry_fill.get('executed_price'))
@@ -91,6 +93,10 @@ def enrich_trade_log(trades: list, order_ledger: list, lifecycle_by_ref: dict | 
         record['fill_match_note'] = note
         record['execution_detail'] = build_trade_execution_detail(record, lifecycle_by_ref)
         enriched.append(record)
+        available_fills = [
+            fill for fill in available_fills
+            if fill is not entry_fill and fill is not exit_fill
+        ]
 
     return enriched
 
@@ -189,7 +195,7 @@ def _nearest_fill(fills: list, target_iso) -> dict | None:
     )
 
 
-def _match_trade_fills(candidates: list, opened_iso, closed_iso) -> tuple[dict | None, dict | None]:
+def _match_trade_fills(candidates: list, opened_iso, closed_iso, fallback_pool: list | None = None) -> tuple[dict | None, dict | None]:
     """Pick distinct entry/exit fills for a trade using time and side heuristics."""
     entry_fill = _nearest_fill(candidates, opened_iso)
     if not entry_fill:
@@ -208,7 +214,11 @@ def _match_trade_fills(candidates: list, opened_iso, closed_iso) -> tuple[dict |
     exit_fill = _nearest_fill(post_open_filtered or side_filtered or remaining, closed_iso)
 
     if not exit_fill:
-        fallback = _nearest_fill(
+        global_remaining = [
+            fill for fill in (fallback_pool or [])
+            if int(fill.get('ref') or 0) != int(entry_fill.get('ref') or 0)
+        ]
+        fallback = _nearest_fill(global_remaining, closed_iso) or _nearest_fill(
             [fill for fill in candidates if int(fill.get('ref') or 0) != int(entry_fill.get('ref') or 0)],
             closed_iso,
         )
