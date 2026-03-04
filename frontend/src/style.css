@@ -3228,3 +3228,367 @@ body.console-drop-armed #console-canvas {
     grid-template-columns: 1fr;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   STRATEGY AUTOPSY — GAME OVER OVERLAY
+   ════════════════════════════════════════════════════════════════════ */
+
+.autopsy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 2, 10, 0.0);
+  backdrop-filter: blur(0px);
+  opacity: 0;
+  transition: opacity 0.6s ease, backdrop-filter 0.6s ease, background 0.6s ease;
+  pointer-events: none;
+}
+
+.autopsy-overlay.is-visible {
+  opacity: 1;
+  background: rgba(4, 2, 10, 0.88);
+  backdrop-filter: blur(8px);
+  pointer-events: all;
+}
+
+.autopsy-card {
+  max-width: 520px;
+  width: 90%;
+  padding: 36px 32px;
+  background: linear-gradient(160deg, rgba(40, 8, 20, 0.95), rgba(10, 4, 18, 0.98));
+  border: 1px solid rgba(255, 34, 85, 0.4);
+  border-radius: 8px;
+  box-shadow:
+    0 0 30px rgba(255, 34, 85, 0.15),
+    inset 0 0 60px rgba(255, 34, 85, 0.05);
+  text-align: center;
+  transform: translateY(30px);
+  animation: autopsy-slide-up 0.6s 0.3s ease-out forwards;
+}
+
+@keyframes autopsy-slide-up {
+  to {
+    transform: translateY(0);
+  }
+}
+
+.autopsy-glitch-title {
+  font-family: var(--font-hud);
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 900;
+  color: var(--red);
+  text-shadow:
+    2px 0 var(--cyan), -2px 0 var(--purple),
+    0 0 20px rgba(255, 34, 85, 0.6);
+  letter-spacing: 6px;
+  margin-bottom: 4px;
+  animation: glitch-flicker 3s infinite;
+}
+
+@keyframes glitch-flicker {
+
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+    text-shadow: 2px 0 var(--cyan), -2px 0 var(--purple), 0 0 20px rgba(255, 34, 85, 0.6);
+  }
+
+  93% {
+    opacity: 0.8;
+    text-shadow: -3px 0 var(--red), 3px 0 var(--cyan);
+  }
+
+  95% {
+    opacity: 1;
+    text-shadow: 1px 0 var(--green), -1px 0 var(--purple);
+  }
+
+  96% {
+    opacity: 0.9;
+  }
+}
+
+.autopsy-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: rgba(255, 34, 85, 0.6);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.autopsy-section {
+  margin: 16px 0;
+  text-align: left;
+}
+
+.autopsy-section-title {
+  font-family: var(--font-pixel);
+  font-size: 0.9rem;
+  color: var(--gold);
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+
+.autopsy-cause {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--red);
+  line-height: 1.5;
+  padding: 10px 14px;
+  background: rgba(255, 34, 85, 0.08);
+  border-left: 2px solid var(--red);
+  border-radius: 0 4px 4px 0;
+}
+
+.autopsy-trades {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.autopsy-trade {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 34, 85, 0.06);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.autopsy-trade-rank {
+  color: var(--gold);
+  font-weight: bold;
+}
+
+.autopsy-trade-pnl {
+  color: var(--red);
+}
+
+.autopsy-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.autopsy-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  background: rgba(4, 10, 24, 0.6);
+  border: 1px solid rgba(255, 34, 85, 0.2);
+  border-radius: 4px;
+}
+
+.autopsy-stat-label {
+  font-family: var(--font-pixel);
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 1px;
+}
+
+.autopsy-stat-value {
+  font-family: var(--font-hud);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.autopsy-stat-value.negative {
+  color: var(--red);
+}
+
+.autopsy-stat-value.positive {
+  color: var(--green);
+}
+
+.autopsy-footer {
+  margin-top: 20px;
+}
+
+.autopsy-hint {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+  margin-bottom: 14px;
+}
+
+.autopsy-retry {
+  font-family: var(--font-pixel);
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  background: transparent;
+  border: 1px solid var(--cyan);
+  padding: 10px 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.autopsy-retry:hover {
+  background: rgba(42, 246, 255, 0.1);
+  box-shadow: var(--glow-cyan);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ACHIEVEMENT TOASTS
+   ════════════════════════════════════════════════════════════════════ */
+
+.achievement-toast {
+  position: fixed;
+  top: 20px;
+  right: -360px;
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
+  min-width: 280px;
+  background: linear-gradient(135deg, rgba(10, 18, 38, 0.96), rgba(20, 12, 40, 0.96));
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  box-shadow: 0 0 25px rgba(255, 213, 106, 0.2);
+  transition: right 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.achievement-toast.is-visible {
+  right: 20px;
+}
+
+.achievement-toast-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 0 6px rgba(255, 213, 106, 0.4));
+}
+
+.achievement-toast-title {
+  font-family: var(--font-pixel);
+  font-size: 0.7rem;
+  color: var(--gold);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.achievement-toast-name {
+  font-family: var(--font-hud);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(255, 213, 106, 0.3);
+}
+
+.achievement-toast-desc {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   DISCOVERY MAP
+   ════════════════════════════════════════════════════════════════════ */
+
+.discovery-map {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 800;
+  width: 200px;
+  background: rgba(4, 7, 15, 0.85);
+  border: 1px solid rgba(42, 246, 255, 0.2);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  padding: 6px;
+  transition: width 0.3s ease, height 0.3s ease;
+  overflow: hidden;
+}
+
+.discovery-map:hover {
+  width: 400px;
+  border-color: rgba(42, 246, 255, 0.4);
+  box-shadow: 0 0 20px rgba(42, 246, 255, 0.1);
+}
+
+.discovery-map-header {
+  font-family: var(--font-pixel);
+  font-size: 0.75rem;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  padding: 4px 6px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.discovery-map-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.discovery-map-stats {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.map-stat {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.map-stat.green {
+  color: var(--green);
+}
+
+.map-stat.red {
+  color: var(--red);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SONIFICATION TOGGLE
+   ════════════════════════════════════════════════════════════════════ */
+
+.sonify-toggle {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(4, 10, 24, 0.85);
+  border: 1px solid rgba(42, 246, 255, 0.2);
+  border-radius: 20px;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  color: var(--cyan);
+  letter-spacing: 1px;
+}
+
+.sonify-toggle:hover {
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.sonify-toggle.is-active {
+  border-color: var(--green);
+  color: var(--green);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.2);
+}
+
+.sonify-toggle-icon {
+  font-size: 1.1rem;
+}
