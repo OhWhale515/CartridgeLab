@@ -11,7 +11,7 @@ import { initHUD, updateHUD } from './hud.js';
 import { initMenu } from './menu.js';
 import { initChartWorld, updateTerrain } from './chartworld.js';
 import { initReplayLane, renderReplayLane } from './replaylane_pixi.js';
-import { runBacktest } from './api.js';
+import { fetchIntegrationStatus, runBacktest } from './api.js';
 import { playSound } from './sounds.js';
 import brandImage from '../../slimlogobrain.png';
 import gameSplashImage from '../../TradingGame.png';
@@ -93,6 +93,7 @@ initMenuDock();
 initSplashScreen();
 initReplayControls();
 initConsoleGameDrop();
+initControlSurface();
 
 // ─── Event Handlers ───────────────────────────────────────────────────────────
 async function onFileDropped(file) {
@@ -437,6 +438,161 @@ function initConsoleGameDrop() {
             }
         });
     });
+}
+
+function initControlSurface() {
+    const utilityButtons = Array.from(document.querySelectorAll('#utility-cluster .utility-btn'));
+    const utilityMap = ['net', 'fx', 'sys'];
+    utilityButtons.forEach((button, index) => {
+        const panelKey = utilityMap[index] || 'sys';
+        button.dataset.panel = panelKey;
+        button.textContent = panelKey.toUpperCase();
+        button.addEventListener('click', () => openSystemPanel(panelKey));
+    });
+
+    const navMap = ['trade', 'market', 'skills', 'quests', 'leaderboard', 'inventory'];
+    document.querySelectorAll('.menu-nav-item').forEach((button, index) => {
+        const mode = navMap[index] || 'trade';
+        button.dataset.panel = mode;
+        button.addEventListener('click', () => openSystemPanel(mode));
+    });
+
+    document.getElementById('system-panel-close')?.addEventListener('click', () => {
+        closeSystemPanel();
+    });
+
+    document.getElementById('system-panel-primary')?.addEventListener('click', async () => {
+        const panel = document.getElementById('system-panel');
+        const mode = panel?.dataset.mode || 'trade';
+        if (mode === 'net') {
+            await openSystemPanel('net');
+            return;
+        }
+        if (mode === 'market') {
+            setGameShellActive(true);
+            setConsolePrompt('MARKET WATCH', 'Charts are live in watch mode.');
+            closeSystemPanel();
+            return;
+        }
+        if (mode === 'fx') {
+            replayState.speed = replayState.speed === 0.5 ? 1 : 0.5;
+            const speedButton = document.getElementById('replay-speed');
+            if (speedButton) {
+                speedButton.textContent = `${replayState.speed}X`;
+            }
+            openSystemPanel('fx');
+            return;
+        }
+        closeSystemPanel();
+    });
+}
+
+async function openSystemPanel(mode) {
+    const panel = document.getElementById('system-panel');
+    const kicker = document.getElementById('system-panel-kicker');
+    const title = document.getElementById('system-panel-title');
+    const body = document.getElementById('system-panel-body');
+    const meta = document.getElementById('system-panel-meta');
+    const primary = document.getElementById('system-panel-primary');
+    if (!panel || !kicker || !title || !body || !meta || !primary) {
+        return;
+    }
+
+    panel.dataset.mode = mode;
+    panel.classList.remove('hidden');
+
+    const defaults = {
+        trade: {
+            kicker: 'TRADE MODULE',
+            title: 'Strategy Launch',
+            body: 'Load cartridges, configure runs, and enter replay mode from the console.',
+            meta: 'Primary path: configure run -> insert cartridge -> launch replay.',
+            primary: 'RUN READY',
+        },
+        market: {
+            kicker: 'MARKET VIEW',
+            title: 'Chart Watch',
+            body: 'Open the market stage without a backtest and use the console as a live chart surface.',
+            meta: 'Use this as a TradingView-style watch mode while building toward live Pine bridge support.',
+            primary: 'OPEN WATCH',
+        },
+        skills: {
+            kicker: 'SKILLS',
+            title: 'Strategy Kits',
+            body: 'Future home for templates, strategy assistants, and reusable risk presets.',
+            meta: 'Planned: Python cartridges, Pine webhook templates, and coach-mode helpers.',
+            primary: 'OK',
+        },
+        quests: {
+            kicker: 'QUESTS',
+            title: 'Guided Challenges',
+            body: 'Structured missions will teach strategy tuning and benchmark beating.',
+            meta: 'Planned: beat drawdown caps, survive chop, and outscore baseline strategies.',
+            primary: 'OK',
+        },
+        leaderboard: {
+            kicker: 'LEADERBOARD',
+            title: 'Run Ranking',
+            body: 'This panel will rank saved runs by score, Sharpe, drawdown, and consistency.',
+            meta: 'Planned: best campaigns, strongest boss clears, and most stable systems.',
+            primary: 'OK',
+        },
+        inventory: {
+            kicker: 'INVENTORY',
+            title: 'Saved Assets',
+            body: 'Use this for cartridges, saved presets, datasets, and imported connectors.',
+            meta: 'Planned: cartridge vault, data packs, and signal bridge profiles.',
+            primary: 'OK',
+        },
+        fx: {
+            kicker: 'FX CONTROL',
+            title: 'Replay Speed',
+            body: 'Adjust playback pacing and visual intensity for the current simulation.',
+            meta: `Current replay speed: ${replayState.speed}X`,
+            primary: 'TOGGLE SPEED',
+        },
+        sys: {
+            kicker: 'SYSTEM',
+            title: 'Console Status',
+            body: 'Inspect runtime state, launch flow, and platform readiness from the console shell.',
+            meta: `Game shell: ${document.getElementById('market-stage')?.classList.contains('hidden') ? 'hidden' : 'visible'}`,
+            primary: 'OK',
+        },
+    };
+
+    const selected = defaults[mode] || defaults.trade;
+    kicker.textContent = selected.kicker;
+    title.textContent = selected.title;
+    body.textContent = selected.body;
+    meta.textContent = selected.meta;
+    primary.textContent = selected.primary;
+
+    if (mode === 'net') {
+        kicker.textContent = 'NETWORK';
+        title.textContent = 'TradingView Bridge';
+        body.textContent = 'Inspect webhook readiness for Pine-script alerts and paper-routing status.';
+        meta.textContent = 'Loading integration state...';
+        primary.textContent = 'REFRESH';
+        try {
+            const status = await fetchIntegrationStatus();
+            const tv = status.tradingview || {};
+            const network = status.network || {};
+            meta.textContent = [
+                `API: ${network.api || 'unknown'}`,
+                `ENGINE: ${network.engine || 'unknown'}`,
+                `PAPER ROUTER: ${network.paper_router || 'unknown'}`,
+                `TV MODE: ${tv.mode || 'unknown'}`,
+                `WEBHOOK: ${tv.webhook_url || 'n/a'}`,
+                `LAST SIGNAL: ${tv.last_signal ? `${tv.last_signal.signal} ${tv.last_signal.symbol}` : 'none'}`,
+            ].join('\n');
+        } catch (error) {
+            meta.textContent = `Integration status unavailable.\n${error.message}`;
+        }
+    }
+}
+
+function closeSystemPanel() {
+    document.getElementById('system-panel')?.classList.add('hidden');
 }
 
 function setConsolePrompt(title, subtitle) {

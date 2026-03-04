@@ -3,6 +3,7 @@ CartridgeLab — Flask API Server
 The console's I/O interface. Accepts cartridge files, runs backtests, returns results.
 """
 import os
+from datetime import datetime, timezone
 from bootstrap import BASE_DIR, configure_local_vendor
 
 configure_local_vendor()
@@ -17,6 +18,15 @@ CORS(app)
 
 CARTRIDGES_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'cartridges'))
 SUPPORTED_EXTENSIONS = {'.py', '.pine', '.mq4', '.mq5'}
+INTEGRATION_STATE = {
+    'tradingview': {
+        'enabled': True,
+        'mode': 'paper',
+        'last_signal': None,
+        'last_received_at': None,
+        'received_count': 0,
+    },
+}
 SAMPLE_CARTRIDGE_METADATA = {
     'trend_quest.py': {
         'title': 'Trend Quest',
@@ -126,6 +136,63 @@ def get_cartridge_file(filename: str):
         return jsonify({"error": "Cartridge not found"}), 404
 
     return send_from_directory(CARTRIDGES_DIR, safe_name, as_attachment=False)
+
+
+@app.route('/api/integrations/status', methods=['GET'])
+def integration_status():
+    tradingview = INTEGRATION_STATE['tradingview']
+    webhook_url = request.host_url.rstrip('/') + '/api/integrations/tradingview/webhook'
+    return jsonify({
+        "status": "ok",
+        "tradingview": {
+            "enabled": tradingview['enabled'],
+            "mode": tradingview['mode'],
+            "webhook_url": webhook_url,
+            "last_signal": tradingview['last_signal'],
+            "last_received_at": tradingview['last_received_at'],
+            "received_count": tradingview['received_count'],
+            "notes": [
+                "Use TradingView strategy alerts with JSON payloads.",
+                "Route alerts here for paper execution and audit logging.",
+                "Ports 80 or 443 only for production TradingView webhooks.",
+            ],
+        },
+        "network": {
+            "api": "online",
+            "engine": "ready",
+            "paper_router": "armed",
+        },
+    })
+
+
+@app.route('/api/integrations/tradingview/webhook', methods=['POST'])
+def tradingview_webhook():
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {
+            "raw": request.get_data(as_text=True),
+        }
+
+    now = datetime.now(timezone.utc).isoformat()
+    signal = payload.get('signal') or payload.get('action') or payload.get('side') or payload.get('raw') or 'unknown'
+    symbol = payload.get('symbol') or payload.get('ticker') or 'UNKNOWN'
+
+    INTEGRATION_STATE['tradingview'].update({
+        'last_signal': {
+            'signal': str(signal).upper(),
+            'symbol': str(symbol).upper(),
+            'payload': payload,
+        },
+        'last_received_at': now,
+        'received_count': INTEGRATION_STATE['tradingview']['received_count'] + 1,
+    })
+
+    return jsonify({
+        "status": "accepted",
+        "received_at": now,
+        "signal": INTEGRATION_STATE['tradingview']['last_signal'],
+        "mode": INTEGRATION_STATE['tradingview']['mode'],
+    }), 202
 
 
 @app.route('/api/run', methods=['POST'])

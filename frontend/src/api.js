@@ -59,3 +59,9 @@ export async function checkHealth() {
     const resp = await fetch(`${API_BASE}/health`);
     return resp.json();
 }
+
+export async function fetchIntegrationStatus() {
+    const resp = await fetch(`${API_BASE}/integrations/status`);
+    if (!resp.ok) throw new Error('Could not fetch integration status');
+    return resp.json();
+}

@@ -1265,6 +1265,88 @@ html, body {
 }
 .btn-run:active { transform: scale(0.98); }
 
+.system-panel {
+  position: fixed;
+  left: 236px;
+  top: 96px;
+  z-index: 28;
+  width: min(460px, calc(100vw - 640px));
+  min-width: 340px;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(42, 246, 255, 0.18);
+  background: linear-gradient(180deg, rgba(8, 18, 38, 0.94), rgba(4, 10, 24, 0.9));
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 213, 106, 0.04);
+  backdrop-filter: blur(10px);
+}
+
+.system-panel-kicker {
+  font-family: var(--font-hud);
+  font-size: 0.55rem;
+  letter-spacing: 0.22em;
+  color: rgba(255, 213, 106, 0.82);
+  text-transform: uppercase;
+}
+
+.system-panel-title {
+  margin-top: 8px;
+  font-family: var(--font-hud);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #f3f6ff;
+}
+
+.system-panel-body {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: rgba(214, 224, 255, 0.72);
+  white-space: pre-line;
+}
+
+.system-panel-meta {
+  margin-top: 12px;
+  padding: 10px 12px;
+  min-height: 70px;
+  border-radius: 10px;
+  border: 1px solid rgba(42, 246, 255, 0.1);
+  background: rgba(9, 20, 42, 0.44);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: rgba(42, 246, 255, 0.74);
+  white-space: pre-line;
+}
+
+.system-panel-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+}
+
+.system-panel-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 213, 106, 0.28);
+  background: linear-gradient(135deg, rgba(42, 246, 255, 0.1), rgba(240, 180, 42, 0.12));
+  color: var(--gold);
+  font-family: var(--font-hud);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.system-panel-btn-alt {
+  border-color: rgba(42, 246, 255, 0.18);
+  color: var(--cyan);
+  background: rgba(8, 18, 38, 0.58);
+}
+
 /* ── Loading Screen ── */
 .loading-screen {
   position: fixed; inset: 0;
@@ -2378,6 +2460,14 @@ html, body {
 
   .utility-cluster {
     display: none;
+  }
+
+  .system-panel {
+    left: 12px;
+    right: 12px;
+    top: 92px;
+    width: auto;
+    min-width: 0;
   }
 
   .market-stage-meta,
