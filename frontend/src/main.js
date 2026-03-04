@@ -13,12 +13,19 @@ import { initMenu } from './menu.js';
 import { initChartWorld, updateTerrain } from './chartworld.js';
 import { initReplayLane, renderReplayLane } from './replaylane_pixi.js';
 import { fetchIntegrationStatus, fetchRuns, runBacktest } from './api.js';
-import { playSound } from './sounds.js';
+import { playSound, sonifyEquityCurve, stopSonification, isSonifying } from './sounds.js';
+import { initWeather, updateWeather, setWeatherRegime, detectRegimeFromEquity } from './weather.js';
+import { shouldShowAutopsy, generateAutopsyData, showAutopsyOverlay, removeAutopsyOverlay } from './autopsy.js';
+import { checkAchievements } from './achievements.js';
+import { recordRun, getCartridgeWear } from './cartridge_history.js';
+import { initDiscoveryMap, renderMap as renderDiscoveryMap } from './discovery_map.js';
 import brandImage from '../../slimlogobrain.png';
 import gameSplashImage from '../../TradingGame.png';
 
 let splashDismissed = false;
 let splashBooting = false;
+let sonifyEnabled = false;
+let currentStrategyName = '';
 const replayState = {
     timer: null,
     paused: false,
@@ -50,7 +57,7 @@ renderer.shadowMap.enabled = true;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05000f);
-scene.fog = new THREE.FogExp2(0x05000f, 0.04);
+// Note: scene.fog will be managed by weather.js — do not set here
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 4, 10);
@@ -83,6 +90,7 @@ scene.add(rimLight);
 const consoleGroup = buildConsole(scene);
 const chartWorld = initChartWorld(scene);
 const replayLane = initReplayLane(document.getElementById('replay-lane'));
+initWeather(scene);
 applyThemeBranding();
 setGameShellActive(false);
 setHeroIdle(true);
@@ -97,34 +105,40 @@ initReplayControls();
 initTradeInspector();
 initConsoleGameDrop();
 initControlSurface();
+initDiscoveryMap();
+initSonifyToggle();
 
 // ─── Event Handlers ───────────────────────────────────────────────────────────
 async function onFileDropped(file) {
     await dismissSplashScreen();
     playSound('insert');
+    removeAutopsyOverlay();
     setMenuCollapsed(false);
     setGameShellActive(false);
     setHeroIdle(false);
+    currentStrategyName = file?.name || 'Custom cartridge';
 
     if (consoleGroup?.userData?.setCartridgeTheme) {
         consoleGroup.userData.setCartridgeTheme(file?.name || '');
     }
 
-    armConsoleForSelection(file?.name || 'Custom cartridge');
+    armConsoleForSelection(currentStrategyName);
     showRunConfig(file);
 }
 
 async function onCartridgeSelected(cartridge) {
     await dismissSplashScreen();
+    removeAutopsyOverlay();
     setMenuCollapsed(false);
     setGameShellActive(false);
     setHeroIdle(false);
+    currentStrategyName = cartridge?.title || cartridge?.name || 'Trading cartridge';
 
     if (consoleGroup?.userData?.setCartridgeTheme) {
         consoleGroup.userData.setCartridgeTheme(cartridge?.type || cartridge?.title || cartridge?.name || '');
     }
 
-    armConsoleForSelection(cartridge?.title || cartridge?.name || 'Trading cartridge');
+    armConsoleForSelection(currentStrategyName);
     showRunConfig(null, cartridge);
 }
 
@@ -912,6 +926,35 @@ function finishReplay(result, ticker, start, end) {
     setConsolePrompt('RUN COMPLETE', buildReplayOutcome(result));
     appendChatMessage(`System: ${buildReplayOutcome(result)}`);
     triggerResultReveal();
+
+    /* ── Innovation hooks: post-backtest ── */
+    // Achievements
+    checkAchievements(result);
+
+    // Cartridge history + discovery map
+    recordRun(currentStrategyName, result);
+    renderDiscoveryMap();
+
+    // Strategy Autopsy (GAME OVER screen)
+    if (shouldShowAutopsy(result)) {
+        const autopsyData = generateAutopsyData(result);
+        if (autopsyData) {
+            playSound('autopsy');
+            setTimeout(() => showAutopsyOverlay(autopsyData), 1200);
+        }
+    }
+
+    // Sonification
+    if (sonifyEnabled && result.equity_curve?.length > 0) {
+        sonifyEquityCurve(result.equity_curve, { speed: 40, volume: 0.01 });
+    }
+
+    // Set final weather regime
+    const finalRegime = detectRegimeFromEquity(
+        result.equity_curve,
+        (result.equity_curve?.length || 1) - 1,
+    );
+    setWeatherRegime(finalRegime);
 }
 
 function resetReplay() {
@@ -960,6 +1003,12 @@ function advanceReplayBy(amount, tickerHint = null) {
         visibleCount: replayState.step,
         trades: trades.slice(0, tradesVisible),
     });
+
+    /* ── Weather regime shift during replay ── */
+    if (replayState.step % 5 === 0 && curve.length > 10) {
+        const regime = detectRegimeFromEquity(curve, replayState.step);
+        setWeatherRegime(regime);
+    }
 
     const ticker = tickerHint || document.getElementById('trade-pair')?.textContent || 'SPY';
     updateMarketStageFrame(replayState.result, replayState.step);
@@ -1982,16 +2031,47 @@ window.addEventListener('resize', () => {
 
 // ─── Animation Loop ───────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
+let prevTime = 0;
 
 function animate() {
     requestAnimationFrame(animate);
     const elapsed = clock.getElapsedTime();
+    const delta = elapsed - prevTime;
+    prevTime = elapsed;
 
     controls.update();
     updateConsoleScene(elapsed);
+    updateWeather(elapsed, delta);
 
     renderer.render(scene, camera);
 }
 
 animate();
 console.log('%c🎮 CartridgeLab Console Ready', 'color:#00ffee;font-size:16px;font-family:monospace;');
+
+/* ────────────────────────────────────────────────────────────────────
+   Sonification Toggle Button
+   ──────────────────────────────────────────────────────────────────── */
+function initSonifyToggle() {
+    const btn = document.createElement('button');
+    btn.id = 'sonify-toggle';
+    btn.className = 'sonify-toggle';
+    btn.type = 'button';
+    btn.innerHTML = '<span class="sonify-toggle-icon">🔇</span> SONIFY';
+    document.body.appendChild(btn);
+
+    btn.addEventListener('click', () => {
+        sonifyEnabled = !sonifyEnabled;
+        btn.classList.toggle('is-active', sonifyEnabled);
+        btn.querySelector('.sonify-toggle-icon').textContent = sonifyEnabled ? '🔊' : '🔇';
+
+        if (!sonifyEnabled && isSonifying()) {
+            stopSonification();
+        }
+
+        // If replay is already finished and we toggle ON, sonify the current result
+        if (sonifyEnabled && replayState.result?.equity_curve?.length > 0 && !isSonifying()) {
+            sonifyEquityCurve(replayState.result.equity_curve, { speed: 40, volume: 0.01 });
+        }
+    });
+}
