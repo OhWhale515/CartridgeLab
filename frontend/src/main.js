@@ -409,6 +409,7 @@ function setGameShellActive(active) {
         document.getElementById('hud')?.classList.add('hidden');
         document.getElementById('replay-panel')?.classList.add('hidden');
         document.getElementById('trade-inspector')?.classList.add('hidden');
+        document.getElementById('execution-analysis')?.classList.add('hidden');
     }
 }
 
@@ -800,6 +801,7 @@ function startReplay(result, ticker, start, end) {
     setConsolePrompt('SIMULATION LIVE', `${result.strategy_name} is now running on ${ticker}.`);
     initializeMarketStage(result, ticker);
     initializeTradeInspector(result);
+    initializeExecutionAnalysis(result);
     updateTradeTelemetry(result, ticker, 0);
     appendChatMessage(`System: ${result.strategy_name} deployed on ${ticker}.`);
     setReplayStatus(replayStatusForCurrentStep());
@@ -877,6 +879,7 @@ function resetReplay() {
         panel.classList.add('hidden');
     }
     document.getElementById('trade-inspector')?.classList.add('hidden');
+    document.getElementById('execution-analysis')?.classList.add('hidden');
 }
 
 function getReplayTotalSteps() {
@@ -1008,6 +1011,43 @@ function initializeTradeInspector(result) {
     if (trades.length) {
         selectTradeByIndex(0, false);
     }
+}
+
+function initializeExecutionAnalysis(result) {
+    const panel = document.getElementById('execution-analysis');
+    if (!panel) {
+        return;
+    }
+
+    const diagnostics = result?.execution_diagnostics || {};
+    const summary = result?.execution_summary || {};
+    const orderCount = Number(summary.order_count || 0);
+    panel.classList.toggle('hidden', orderCount <= 0);
+    if (orderCount <= 0) {
+        return;
+    }
+
+    setText(
+        'execution-analysis-title',
+        `${result?.strategy_name || 'Run'} | ${result?.ticker || 'MARKET'} | ${String((result?.execution_assumptions || {}).fill_model || 'bar_close').toUpperCase()}`
+    );
+    setText(
+        'execution-analysis-summary',
+        `Orders ${orderCount} | Completed ${Number(diagnostics.completed_order_count || 0)} | Buy ${Number(diagnostics.buy_order_count || 0)} | Sell ${Number(diagnostics.sell_order_count || 0)}`
+    );
+
+    const stats = document.getElementById('execution-analysis-stats');
+    if (stats) {
+        stats.innerHTML = [
+            executionStatMarkup('Avg Exec', executionQualityLabel(summary.avg_quality_bps || 0)),
+            executionStatMarkup('Best Fill', executionQualityLabel(summary.best_quality_bps || 0)),
+            executionStatMarkup('Worst Fill', executionQualityLabel(summary.worst_quality_bps || 0)),
+            executionStatMarkup('Commission', Number(summary.total_commission || 0).toFixed(2)),
+        ].join('');
+    }
+
+    renderExecutionDiagnosticsRows('execution-analysis-best', diagnostics.best_orders || []);
+    renderExecutionDiagnosticsRows('execution-analysis-worst', diagnostics.worst_orders || []);
 }
 
 function syncTradeInspectorToReplay() {
@@ -1247,6 +1287,38 @@ function renderTradeLifecycleRows(rows) {
             Req ${row.requested_price ? Number(row.requested_price).toFixed(2) : 'n/a'} -> Fill ${row.filled_price ? Number(row.filled_price).toFixed(2) : 'n/a'} | ${executionQualityLabel(row.execution_quality_bps || 0)} | Comm ${Number(row.commission || 0).toFixed(2)}
             <br />
             Path: ${formatStatusPath(row.status_path || [])}
+        </div>
+    `).join('');
+}
+
+function executionStatMarkup(label, value) {
+    return `
+        <div class="execution-analysis-stat">
+            <span class="execution-analysis-stat-label">${label}</span>
+            <span class="execution-analysis-stat-value">${value}</span>
+        </div>
+    `;
+}
+
+function renderExecutionDiagnosticsRows(id, rows) {
+    const container = document.getElementById(id);
+    if (!container) {
+        return;
+    }
+
+    const items = Array.isArray(rows) ? rows : [];
+    if (!items.length) {
+        container.innerHTML = '<div class="execution-analysis-row">No execution rows recorded.</div>';
+        return;
+    }
+
+    container.innerHTML = items.map((row) => `
+        <div class="execution-analysis-row">
+            REF ${row.ref ?? 'n/a'} | ${String(row.side || '').toUpperCase()} | ${String(row.order_type || '').toUpperCase()}
+            <br />
+            ${executionQualityLabel(row.execution_quality_bps || 0)} | Comm ${Number(row.commission || 0).toFixed(2)}
+            <br />
+            ${String(row.final_status || 'n/a').toUpperCase()}
         </div>
     `).join('');
 }

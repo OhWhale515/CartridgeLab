@@ -85,7 +85,9 @@ def _build_summary(payload: dict) -> dict:
         "commission_bps": payload.get("commission_bps"),
         "fill_policy": payload.get("fill_policy"),
         "execution_order_count": payload.get("execution_summary", {}).get("order_count"),
+        "completed_execution_orders": payload.get("execution_diagnostics", {}).get("completed_order_count"),
         "avg_execution_quality_bps": payload.get("execution_summary", {}).get("avg_quality_bps"),
+        "best_execution_quality_bps": payload.get("execution_summary", {}).get("best_quality_bps"),
         "worst_execution_quality_bps": payload.get("execution_summary", {}).get("worst_quality_bps"),
         "total_execution_commission": payload.get("execution_summary", {}).get("total_commission"),
     }
