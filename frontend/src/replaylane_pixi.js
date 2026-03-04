@@ -59,6 +59,8 @@ export function renderReplayLane(lane, priceBars = [], visibleCount = 0, options
 
     const signalType = options.signalType || null;
     const latestEvent = options.latestEvent || null;
+    const replayEvents = options.events || [];
+    const currentStep = options.currentStep || visibleCount || 0;
     drawBackground(lane.layers.background, lane.layers.farGlow, lane.layers.nearGlow, width, height, visibleCount, priceBars.length, signalType);
 
     if (!priceBars.length) {
@@ -88,7 +90,9 @@ export function renderReplayLane(lane, priceBars = [], visibleCount = 0, options
     drawIndicatorRibbon(lane.layers.ribbons[1], bars, leftPad, topPad, chartWidth, chartHeight, 26, 0xffcf67, 0.72);
     drawIndicatorRibbon(lane.layers.ribbons[2], bars, leftPad, topPad, chartWidth, chartHeight, 42, 0x7cfccb, 0.64);
     drawCandles(lane.layers.candles, bars, leftPad, topPad, chartHeight, min, span, step, candleWidth);
+    drawTradeOverlay(lane.layers.tradeOverlay, bars, replayEvents, leftPad, topPad, chartHeight, min, span, step, currentStep);
     drawPriceScale(lane.layers.priceTag, lane.layers.priceText, bars[bars.length - 1], width - rightPad + 2, topPad, chartHeight);
+    drawFocusLabel(lane.layers.focusTag, lane.layers.focusText, latestEvent, runnerX, runnerY, width);
     drawRunner(lane.layers.runner, runnerX, runnerY, signalType, visibleCount);
     updateParticles(lane, runnerX, runnerY, signalType, latestEvent);
 }
@@ -105,17 +109,25 @@ function buildScene(stage) {
     const ribbonB = new Graphics();
     const ribbonC = new Graphics();
     const candles = new Graphics();
+    const tradeOverlay = new Graphics();
     const particles = new Container();
     const runner = buildRunner();
     const priceTag = new Graphics();
+    const focusTag = new Graphics();
     const priceText = new Text('', new TextStyle({
         fontFamily: 'Orbitron, sans-serif',
         fontSize: 12,
         fill: 0x04111f,
         fontWeight: '700',
     }));
+    const focusText = new Text('', new TextStyle({
+        fontFamily: 'Share Tech Mono, monospace',
+        fontSize: 11,
+        fill: 0xdaf7ff,
+        fontWeight: '700',
+    }));
 
-    root.addChild(background, farGlow, nearGlow, volume, ribbonA, ribbonB, ribbonC, candles, particles, runner, priceTag, priceText);
+    root.addChild(background, farGlow, nearGlow, volume, ribbonA, ribbonB, ribbonC, candles, tradeOverlay, particles, runner, priceTag, priceText, focusTag, focusText);
 
     return {
         root,
@@ -125,10 +137,13 @@ function buildScene(stage) {
         volume,
         ribbons: [ribbonA, ribbonB, ribbonC],
         candles,
+        tradeOverlay,
         particles,
         runner,
         priceTag,
         priceText,
+        focusTag,
+        focusText,
     };
 }
 
@@ -139,8 +154,11 @@ function clearChartLayers(lane) {
     layers.nearGlow.clear();
     layers.ribbons.forEach((ribbon) => ribbon.clear());
     layers.candles.clear();
+    layers.tradeOverlay.clear();
     layers.priceTag.clear();
     layers.priceText.text = '';
+    layers.focusTag.clear();
+    layers.focusText.text = '';
     layers.runner.visible = false;
     clearParticles(layers.particles);
     lane.lastBurstKey = '';
@@ -268,6 +286,95 @@ function drawPriceScale(graphics, label, bar, x, topPad, chartHeight) {
     label.text = Number(bar.close || 0).toFixed(2);
     label.x = x + 7;
     label.y = markerY + 4;
+}
+
+function drawTradeOverlay(graphics, bars, events, leftPad, topPad, chartHeight, min, span, step, currentStep) {
+    graphics.clear();
+    if (!bars.length || !events?.length) {
+        return;
+    }
+
+    const visibleEvents = events.filter((event) => (event.bar_index ?? 0) < bars.length);
+
+    const openings = visibleEvents.filter((event) => event.type === 'buy' || event.type === 'engage');
+    openings.forEach((openEvent) => {
+        const closeEvent = visibleEvents.find((event) =>
+            event.trade_index === openEvent.trade_index && (event.type === 'sell' || event.type === 'damage')
+        );
+        const openIndex = openEvent.bar_index ?? 0;
+        const closeIndex = closeEvent?.bar_index ?? Math.min(currentStep - 1, bars.length - 1);
+        const startBar = bars[Math.max(0, Math.min(openIndex, bars.length - 1))];
+        const endBar = bars[Math.max(0, Math.min(closeIndex, bars.length - 1))];
+        const startX = leftPad + openIndex * step;
+        const endX = leftPad + closeIndex * step;
+        const startY = projectY(Number(startBar.close || 0), min, span, topPad, chartHeight);
+        const endY = projectY(Number(endBar.close || 0), min, span, topPad, chartHeight);
+        const color = closeEvent ? (closeEvent.type === 'sell' ? 0xfff07a : 0xff5f49) : 0x9df5ff;
+
+        graphics.lineStyle(2, color, closeEvent ? 0.45 : 0.28);
+        graphics.moveTo(startX, startY);
+        graphics.lineTo(endX, endY);
+    });
+
+    visibleEvents.forEach((event) => {
+        if (event.type === 'scan' || event.type === 'finish') {
+            return;
+        }
+
+        const index = Math.max(0, Math.min(event.bar_index ?? 0, bars.length - 1));
+        const bar = bars[index];
+        const x = leftPad + index * step;
+        const y = projectY(Number(bar.close || 0), min, span, topPad, chartHeight);
+        const isEntry = event.type === 'buy' || event.type === 'engage';
+        const color = event.type === 'buy' ? 0xb8ff4a :
+            event.type === 'sell' ? 0xfff07a :
+                event.type === 'damage' ? 0xff5f49 :
+                    0xff8d4a;
+
+        graphics.lineStyle(2, color, 0.95);
+        graphics.beginFill(0x071221, 0.9);
+        if (isEntry) {
+            graphics.drawCircle(x, y, 6);
+        } else {
+            graphics.drawRoundedRect(x - 5, y - 5, 10, 10, 2);
+        }
+        graphics.endFill();
+
+        graphics.lineStyle(1, color, 0.32);
+        graphics.moveTo(x, topPad + 4);
+        graphics.lineTo(x, topPad + chartHeight);
+    });
+}
+
+function drawFocusLabel(graphics, label, latestEvent, x, y, width) {
+    graphics.clear();
+    if (!latestEvent || latestEvent.type === 'scan' || latestEvent.type === 'finish') {
+        label.text = '';
+        return;
+    }
+
+    const text = latestEvent.type === 'sell' ? 'TP HIT' :
+        latestEvent.type === 'damage' ? 'SL HIT' :
+            latestEvent.type === 'buy' ? 'ENTRY' :
+                'SETUP';
+    label.text = text;
+
+    const boxWidth = 74;
+    const boxHeight = 22;
+    const boxX = Math.min(Math.max(16, x - boxWidth / 2), width - boxWidth - 16);
+    const boxY = Math.max(14, y - 42);
+    const color = latestEvent.type === 'buy' ? 0xb8ff4a :
+        latestEvent.type === 'sell' ? 0xfff07a :
+            latestEvent.type === 'damage' ? 0xff5f49 :
+                0xff8d4a;
+
+    graphics.beginFill(0x071221, 0.88);
+    graphics.lineStyle(1.5, color, 0.9);
+    graphics.drawRoundedRect(boxX, boxY, boxWidth, boxHeight, 6);
+    graphics.endFill();
+
+    label.x = boxX + 10;
+    label.y = boxY + 4;
 }
 
 function buildRunner() {

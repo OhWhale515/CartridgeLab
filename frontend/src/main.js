@@ -990,6 +990,7 @@ function initializeMarketStage(result, ticker) {
     renderReplayLane(replayLane, result.price_bars || [], 1, { signalType: null, latestEvent: null });
     renderCandleStage(result.price_bars || [], 1);
     updateStageIndicators(result.price_bars || [], 1);
+    updateStageExplainer(result, 0, null);
     setStageSignal('No signal', null);
 }
 
@@ -1006,6 +1007,8 @@ function updateMarketStageFrame(result, visibleCount) {
     renderReplayLane(replayLane, bars, visibleCount, {
         signalType: visualStateForEvent(latestEvent),
         latestEvent,
+        events: result.replay_events || [],
+        currentStep: visibleCount,
     });
     renderCandleStage(bars, visibleCount);
 
@@ -1019,10 +1022,64 @@ function updateMarketStageFrame(result, visibleCount) {
     }
     updateStageProgress(visibleCount, bars.length);
     updateStageIndicators(bars, visibleCount);
+    updateStageExplainer(result, barIndex, latestEvent);
     setStageSignal(
         latestEvent ? latestEvent.label : 'Tracking trend',
         latestEvent?.type || null,
     );
+}
+
+function updateStageExplainer(result, barIndex, latestEvent) {
+    const strategyNote = document.getElementById('stage-strategy-note');
+    const tradeNote = document.getElementById('stage-trade-note');
+    if (!strategyNote || !tradeNote) {
+        return;
+    }
+
+    const bars = result?.price_bars || [];
+    const events = result?.replay_events || [];
+    const activeTrade = currentTradeWindow(events, barIndex);
+    const currentBar = bars[Math.max(0, Math.min(barIndex, bars.length - 1))];
+
+    if (latestEvent?.reason) {
+        strategyNote.textContent = latestEvent.reason;
+    } else {
+        strategyNote.textContent = 'The strategy is scanning trend, momentum, and risk before committing capital.';
+    }
+
+    if (activeTrade && currentBar) {
+        const entry = Number(activeTrade.entry_price || currentBar.close || 0);
+        const live = Number(currentBar.close || 0);
+        const movePct = entry ? (((live - entry) / entry) * 100) : 0;
+        tradeNote.textContent = `Trade ${activeTrade.trade_index} active | Entry ${entry.toFixed(2)} | Live ${live.toFixed(2)} | Move ${movePct >= 0 ? '+' : ''}${movePct.toFixed(2)}%`;
+        return;
+    }
+
+    if (latestEvent?.type === 'sell' || latestEvent?.type === 'damage') {
+        const exit = Number(latestEvent.exit_price || 0);
+        tradeNote.textContent = `Trade ${latestEvent.trade_index || '-'} closed | Exit ${exit ? exit.toFixed(2) : 'n/a'} | PnL ${Number(latestEvent.pnl || 0).toFixed(2)}`;
+        return;
+    }
+
+    tradeNote.textContent = 'No active trade. The strategy is waiting for confirmation.';
+}
+
+function currentTradeWindow(events, barIndex) {
+    const opens = events
+        .filter((event) => (event.type === 'buy' || event.type === 'engage') && (event.bar_index ?? 0) <= barIndex)
+        .sort((a, b) => (b.bar_index ?? 0) - (a.bar_index ?? 0));
+
+    for (const openEvent of opens) {
+        const closeEvent = events.find((event) =>
+            event.trade_index === openEvent.trade_index &&
+            (event.type === 'sell' || event.type === 'damage')
+        );
+        const closeBar = closeEvent?.bar_index ?? Number.POSITIVE_INFINITY;
+        if (barIndex < closeBar) {
+            return openEvent;
+        }
+    }
+    return null;
 }
 
 function renderCandleStage(priceBars, visibleCount) {

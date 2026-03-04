@@ -178,20 +178,46 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
         opened_at = _to_timestamp_ms(trade.get("opened_at"))
         closed_at = _to_timestamp_ms(trade.get("closed_at"))
         pnl = round(float(trade.get("pnl", 0.0)), 2)
+        profitable = pnl >= 0
+        open_bar_index = _nearest_bar_index(bar_timestamps, opened_at)
+        close_bar_index = _nearest_bar_index(bar_timestamps, closed_at)
+        entry_price = _safe_price(
+            trade.get("entry_price"),
+            trade.get("open_price"),
+            trade.get("opened_price"),
+            trade.get("price_in"),
+        )
+        exit_price = _safe_price(
+            trade.get("exit_price"),
+            trade.get("close_price"),
+            trade.get("closed_price"),
+            trade.get("price_out"),
+        )
+        span_bars = max(close_bar_index - open_bar_index, 0)
 
         events.append({
-            "type": "buy" if pnl >= 0 else "engage",
+            "type": "buy" if profitable else "engage",
             "label": f"Trade {trade_index} opened",
-            "bar_index": _nearest_bar_index(bar_timestamps, opened_at),
+            "bar_index": open_bar_index,
             "trade_index": trade_index,
             "pnl": pnl,
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "reason": "Breakout or pullback entry confirmed. Position armed." if profitable else "Entry armed under pressure. Risk control is active.",
+            "outcome": "profit" if profitable else "risk",
+            "span_bars": span_bars,
         })
         events.append({
-            "type": "sell" if pnl >= 0 else "damage",
+            "type": "sell" if profitable else "damage",
             "label": f"Trade {trade_index} closed",
-            "bar_index": _nearest_bar_index(bar_timestamps, closed_at),
+            "bar_index": close_bar_index,
             "trade_index": trade_index,
             "pnl": pnl,
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "reason": "Profit captured. Trend follow-through paid out." if profitable else "Risk exit triggered. The strategy cut the position.",
+            "outcome": "profit" if profitable else "risk",
+            "span_bars": span_bars,
         })
 
     events.append({
@@ -228,3 +254,14 @@ def _nearest_bar_index(bar_timestamps: list, target_ts: int) -> int:
 def _approx_sortino(sharpe: float) -> float:
     """Approximate Sortino from Sharpe (Sortino ≈ Sharpe * sqrt(2) for symmetric distributions)."""
     return round(sharpe * 1.414, 4) if sharpe else 0.0
+
+
+def _safe_price(*values) -> float:
+    for value in values:
+        try:
+            if value is None:
+                continue
+            return round(float(value), 4)
+        except Exception:
+            continue
+    return 0.0
