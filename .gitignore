@@ -33,6 +33,7 @@ frontend/.npm-cache/
 backend/cache/
 backend/data/cache/
 backend/data/runs/
+.runtime/
 
 # OS
 .DS_Store

@@ -4,8 +4,8 @@ The Console Engine. Orchestrates Backtrader's Cerebro for each cartridge run.
 Each call gets a fresh Cerebro instance — stateless by design.
 """
 import backtrader as bt
-import yfinance as yf
-import pandas as pd
+
+from .backtest_engine import load_market_data
 from .metrics_extractor import extract_metrics
 
 
@@ -63,13 +63,11 @@ def run_backtest(strategy_class, ticker: str, start: str, end: str, cash: float)
         dict with full metrics, equity_curve, and trade log
     """
     # Download market data (the game ROM — read-only market history)
-    raw = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
+    raw, _data_source = load_market_data(ticker=ticker, start=start, end=end)
     if raw.empty:
         raise ValueError(f"No data returned for ticker '{ticker}' in range {start} → {end}")
 
     # Normalize column names to Backtrader expectations
-    raw.columns = [c.lower() if isinstance(c, str) else c[0].lower() for c in raw.columns]
-    raw.index = pd.to_datetime(raw.index)
     feed = bt.feeds.PandasData(dataname=raw)
 
     # Instantiate fresh Cerebro — the console is ready

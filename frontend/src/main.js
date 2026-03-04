@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import gsap from 'gsap';
 import { buildConsole } from './console.js';
 import { initCartridgeSystem } from './cartridge.js';
 import { initHUD, updateHUD } from './hud.js';
@@ -104,6 +105,11 @@ async function onFileDropped(file) {
     setMenuCollapsed(false);
     setGameShellActive(false);
     setHeroIdle(false);
+
+    if (consoleGroup?.userData?.setCartridgeTheme) {
+        consoleGroup.userData.setCartridgeTheme(file?.name || '');
+    }
+
     armConsoleForSelection(file?.name || 'Custom cartridge');
     showRunConfig(file);
 }
@@ -113,6 +119,11 @@ async function onCartridgeSelected(cartridge) {
     setMenuCollapsed(false);
     setGameShellActive(false);
     setHeroIdle(false);
+
+    if (consoleGroup?.userData?.setCartridgeTheme) {
+        consoleGroup.userData.setCartridgeTheme(cartridge?.type || cartridge?.title || cartridge?.name || '');
+    }
+
     armConsoleForSelection(cartridge?.title || cartridge?.name || 'Trading cartridge');
     showRunConfig(null, cartridge);
 }
@@ -227,46 +238,93 @@ async function runWith(file, presetFilename, ticker, start, end, cash, marketDat
     }
 }
 
+// GSAP Animated Insert Transition
 async function playInsertTransition(label) {
     const overlay = document.getElementById('launch-transition');
     const title = document.getElementById('launch-transition-title');
     const sub = document.getElementById('launch-transition-sub');
-    const phases = [
-        { sub: 'Inserting cartridge...', detail: 'Reading cartridge contacts...', progress: 22, scale: 0.95, lift: -0.03, light: 1.55, slotGlow: 0.22, strip: 0.46, insert: 0.24, waitMs: 260 },
-        { sub: 'Locking into console bus...', detail: 'Syncing memory rails...', progress: 58, scale: 1.02, lift: 0.03, light: 1.95, slotGlow: 0.56, strip: 0.8, insert: 0.68, waitMs: 260 },
-        { sub: 'Cartridge verified.', detail: 'Routing control to game core...', progress: 100, scale: 1.01, lift: 0.01, light: 2.2, slotGlow: 0.88, strip: 1.05, insert: 1, waitMs: 220 },
-    ];
-    if (!overlay) {
-        return;
-    }
 
-    overlay.classList.add('insert-mode');
+    if (!overlay) return;
+
+    overlay.classList.add('insert-mode', 'is-visible');
     overlay.classList.remove('hidden');
-    overlay.classList.add('is-visible');
+
     if (title) {
         title.textContent = String(label || 'Trading cartridge').replace(/[_-]+/g, ' ').toUpperCase();
     }
+
     setConsolePrompt('INSERTING GAME', 'Seating cartridge into the console bus.');
     playSound('insert');
-    for (const phase of phases) {
-        if (sub) {
-            sub.textContent = phase.sub;
-        }
-        setLaunchTransitionState(phase.detail, phase.progress);
-        animateConsoleInsert(phase);
-        await wait(phase.waitMs);
+
+    // Make sure cartridge starts in its armed (floating) position
+    if (consoleGroup && consoleGroup.userData.cartridge) {
+        gsap.set(consoleGroup.userData.cartridge.position, { y: 3.8, z: -0.6 });
+        gsap.set(consoleGroup.userData.cartridge.rotation, { x: -0.15 });
     }
-    if (sub) {
-        sub.textContent = 'Launching trading game...';
-    }
-    setLaunchTransitionState('Mounting market arena...', 100);
-    animateConsoleInsert({
-        scale: 1,
-        lift: 0,
-        light: 1.1,
-        slotGlow: 0.46,
-        strip: 0.72,
-        insert: 1,
+
+    // Wrap the timeline in a promise so `await` still works
+    return new Promise(resolve => {
+        const tl = gsap.timeline({
+            onComplete: () => {
+                if (sub) sub.textContent = 'Launching trading game...';
+                setLaunchTransitionState('Mounting market arena...', 100);
+                resolve();
+            }
+        });
+
+        // Phase 1: Descend to float above slot
+        tl.to(consoleGroup.userData.cartridge.position, {
+            y: 2.15,
+            z: 0.1,
+            duration: 0.5,
+            ease: "power2.inOut",
+            onStart: () => {
+                if (sub) sub.textContent = 'Reading cartridge contacts...';
+                setLaunchTransitionState('Reading contacts', 22);
+                consoleState.ledTarget = 1.55;
+            }
+        }, 0);
+
+        // Phase 2: Insert violently (snap down into slot, tilt forward)
+        tl.to(consoleGroup.userData.cartridge.position, {
+            y: 1.5, // Slide deep into the slot
+            duration: 0.4,
+            ease: "back.out(1.2)",
+            onStart: () => {
+                if (sub) sub.textContent = 'Locking into console bus...';
+                setLaunchTransitionState('Syncing memory rails...', 58);
+                consoleState.ledTarget = 2.2;
+                consoleState.slotGlowTarget = 0.88;
+                consoleState.stripTarget = 1.05;
+                playSound('insert'); // Satisfying click
+            }
+        }, 0.6);
+
+        tl.to(consoleGroup.userData.cartridge.rotation, {
+            x: 0, // Tilt flat
+            duration: 0.3,
+            ease: "power1.out"
+        }, 0.6);
+
+        // Phase 3: Console Shake/Rebound
+        tl.to(consoleGroup.position, {
+            y: consoleGroup.userData.baseShellY - 0.05,
+            duration: 0.1,
+            yoyo: true,
+            repeat: 1,
+            onStart: () => {
+                if (sub) sub.textContent = 'Cartridge verified.';
+                setLaunchTransitionState('Routing control to game core...', 95);
+            }
+        }, 0.65);
+
+        // Cool down the lights
+        tl.to(consoleState, {
+            ledTarget: 1.1,
+            slotGlowTarget: 0.46,
+            stripTarget: 0.72,
+            duration: 0.5
+        }, "+=0.2");
     });
 }
 
@@ -279,19 +337,6 @@ function setLaunchTransitionState(message, progress) {
     if (progressNode) {
         progressNode.style.width = `${Math.max(0, Math.min(progress || 0, 100))}%`;
     }
-}
-
-function animateConsoleInsert({ scale = 1, lift = 0, light = 0.8, slotGlow = 0.12, strip = 0.35, insert = 0 }) {
-    if (!consoleGroup) {
-        return;
-    }
-
-    consoleState.shellScaleTarget = scale;
-    consoleState.shellLiftTarget = lift;
-    consoleState.ledTarget = light;
-    consoleState.slotGlowTarget = slotGlow;
-    consoleState.stripTarget = strip;
-    consoleState.insertTarget = insert;
 }
 
 function hideLaunchTransition() {
@@ -677,7 +722,8 @@ async function openSystemPanel(mode) {
                 const expectancy = Number(run.expectancy || 0).toFixed(2);
                 const stress = Number(run.expected_friction_bps || 0).toFixed(2);
                 const impactRate = Number(run.impact_rate || 0).toFixed(2);
-                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | EXP ${expectancy} | EXEC ${exec} | STRESS ${stress}bps ${impactRate}% | COMM ${comm} | ${run.run_id}`;
+                const confidence = `${Number(run.high_confidence_trades || 0)}/${Number(run.medium_confidence_trades || 0)}/${Number(run.low_confidence_trades || 0)}/${Number(run.unmatched_trades || 0)}`;
+                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | EXP ${expectancy} | MATCH H/M/L/U ${confidence} | EXEC ${exec} | STRESS ${stress}bps ${impactRate}% | COMM ${comm} | ${run.run_id}`;
             }).join('\n');
         } catch (error) {
             meta.textContent = `Run archive unavailable.\n${error.message}`;
@@ -1082,7 +1128,7 @@ function initializeRunAnalysis(result) {
     );
     setText(
         'run-analysis-summary',
-        `Expectancy ${Number(analysis.expectancy || 0).toFixed(2)} | Avg winner ${Number(analysis.avg_winner || 0).toFixed(2)} | Avg loser ${Number(analysis.avg_loser || 0).toFixed(2)}`
+        `Expectancy ${Number(analysis.expectancy || 0).toFixed(2)} | Avg winner ${Number(analysis.avg_winner || 0).toFixed(2)} | Avg loser ${Number(analysis.avg_loser || 0).toFixed(2)} | Match H/M/L/U ${Number(analysis.high_confidence_trades || 0)}/${Number(analysis.medium_confidence_trades || 0)}/${Number(analysis.low_confidence_trades || 0)}/${Number(analysis.unmatched_trades || 0)}`
     );
 
     const stats = document.getElementById('run-analysis-stats');
@@ -1433,7 +1479,7 @@ function replayEventText(event) {
         event.type === 'sell' ? 'TP HIT' :
             event.type === 'damage' ? 'SL HIT' :
                 event.type === 'engage' ? 'Pressure building' :
-                'Position engaged';
+                    'Position engaged';
     return `${action}: ${event.label}${Number.isFinite(pnl) ? ` (${pnl.toFixed(2)})` : ''}.`;
 }
 
@@ -1893,14 +1939,12 @@ function updateConsoleScene(elapsed) {
 
     const cartridge = consoleGroup?.userData?.cartridge;
     if (cartridge) {
-        const inserted = consoleState.insertDisplay;
-        cartridge.position.y = 2.12 - inserted * 0.76 + Math.sin(elapsed * 2 + inserted * 4) * 0.01;
-        cartridge.position.z = 0.55 - inserted * 0.82;
-        cartridge.rotation.x = -0.16 + inserted * 0.14;
-        cartridge.rotation.z = Math.sin(elapsed * 1.6) * 0.01 * (1 - inserted);
+        // Subtle floating effect combined with the current Y position (set by GSAP)
+        // We avoid hard overwriting position.y so GSAP tweens remain intact
         const labelMesh = cartridge.children[1];
         if (labelMesh?.material) {
-            labelMesh.material.emissiveIntensity = 0.2 + inserted * 0.7;
+            // Emissive pulse on the label
+            labelMesh.material.emissiveIntensity = 0.5 + Math.sin(elapsed * 3) * 0.1;
         }
     }
 }

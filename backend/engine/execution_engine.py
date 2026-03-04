@@ -140,6 +140,7 @@ def build_run_analysis(trades: list, execution_assumptions: dict | None = None) 
     losers = [float(trade.get('pnl') or 0.0) for trade in items if float(trade.get('pnl') or 0.0) < 0]
     pnl_values = [float(trade.get('pnl') or 0.0) for trade in items]
     bars = [float(trade.get('bar_len') or trade.get('span_bars') or 0.0) for trade in items]
+    confidence = [str(trade.get('fill_match_confidence') or 'none').lower() for trade in items]
     count = len(items)
     net = sum(pnl_values)
     expectancy = (net / count) if count else 0.0
@@ -156,6 +157,10 @@ def build_run_analysis(trades: list, execution_assumptions: dict | None = None) 
         "avg_winner": round((sum(winners) / len(winners)) if winners else 0.0, 4),
         "avg_loser": round((sum(losers) / len(losers)) if losers else 0.0, 4),
         "avg_bars_held": round((sum(bars) / len(bars)) if bars else 0.0, 4),
+        "high_confidence_trades": sum(1 for item in confidence if item == 'high'),
+        "medium_confidence_trades": sum(1 for item in confidence if item == 'medium'),
+        "low_confidence_trades": sum(1 for item in confidence if item == 'low'),
+        "unmatched_trades": sum(1 for item in confidence if item == 'none'),
         "fill_model": (execution_assumptions or {}).get('fill_model', 'bar_close'),
     }
 

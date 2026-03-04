@@ -7,36 +7,54 @@ ranked, and inspected later.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-RUNS_DIR = BACKEND_DIR / "data" / "runs"
+PROJECT_DIR = BACKEND_DIR.parent
+RUNS_DIR = Path(os.environ.get("CARTRIDGELAB_RUNS_DIR", PROJECT_DIR / ".runtime" / "runs"))
+FALLBACK_RUNS_DIRS = (
+    PROJECT_DIR / "runtime" / "runs",
+    BACKEND_DIR / ".tmp" / "runs",
+)
 
 
 def persist_run_record(record: dict) -> dict:
     """Write a completed run to disk and return the stored payload."""
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    runs_dir = _resolve_runs_dir()
 
     payload = dict(record)
     payload.setdefault("run_id", _new_run_id())
     payload.setdefault("created_at", datetime.now(timezone.utc).isoformat())
     payload["summary"] = _build_summary(payload)
 
-    path = RUNS_DIR / f"{payload['run_id']}.json"
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    if runs_dir is None:
+        payload["archive_status"] = "unavailable"
+        payload["archive_error"] = "No writable run storage directory is available"
+        return payload
+
+    path = runs_dir / f"{payload['run_id']}.json"
+    try:
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        payload["archive_status"] = "persisted"
+        payload["archive_path"] = str(path)
+    except OSError as exc:
+        payload["archive_status"] = "unavailable"
+        payload["archive_error"] = str(exc)
     return payload
 
 
 def list_run_records(limit: int = 20) -> list[dict]:
     """Return the most recent stored run summaries."""
-    if not RUNS_DIR.exists():
+    runs_dir = _resolve_runs_dir(create=False)
+    if not runs_dir or not runs_dir.exists():
         return []
 
     records = []
-    for path in sorted(RUNS_DIR.glob("*.json"), reverse=True):
+    for path in sorted(runs_dir.glob("*.json"), reverse=True):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             records.append(payload.get("summary") or _build_summary(payload))
@@ -53,7 +71,11 @@ def load_run_record(run_id: str) -> dict | None:
     if not safe_id:
         return None
 
-    path = RUNS_DIR / f"{safe_id}.json"
+    runs_dir = _resolve_runs_dir(create=False)
+    if not runs_dir:
+        return None
+
+    path = runs_dir / f"{safe_id}.json"
     if not path.exists():
         return None
 
@@ -94,6 +116,10 @@ def _build_summary(payload: dict) -> dict:
         "net_pnl": payload.get("run_analysis", {}).get("net_pnl"),
         "winning_trades": payload.get("run_analysis", {}).get("winning_trades"),
         "losing_trades": payload.get("run_analysis", {}).get("losing_trades"),
+        "high_confidence_trades": payload.get("run_analysis", {}).get("high_confidence_trades"),
+        "medium_confidence_trades": payload.get("run_analysis", {}).get("medium_confidence_trades"),
+        "low_confidence_trades": payload.get("run_analysis", {}).get("low_confidence_trades"),
+        "unmatched_trades": payload.get("run_analysis", {}).get("unmatched_trades"),
         "expected_friction_bps": payload.get("fill_stress", {}).get("expected_friction_bps"),
         "impacted_orders": payload.get("fill_stress", {}).get("impacted_orders"),
         "completed_orders": payload.get("fill_stress", {}).get("completed_orders"),
@@ -104,3 +130,26 @@ def _build_summary(payload: dict) -> dict:
 def _new_run_id() -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     return f"run_{stamp}_{uuid4().hex[:8]}"
+
+
+def _resolve_runs_dir(create: bool = True) -> Path | None:
+    candidates = (RUNS_DIR,) + FALLBACK_RUNS_DIRS + _temp_runs_dirs()
+    for candidate in candidates:
+        path = Path(candidate)
+        try:
+            if create:
+                path.mkdir(parents=True, exist_ok=True)
+            if path.exists() and path.is_dir():
+                return path
+        except OSError:
+            continue
+    return None
+
+
+def _temp_runs_dirs() -> tuple[Path, ...]:
+    try:
+        from tempfile import gettempdir
+
+        return (Path(gettempdir()) / "CartridgeLab" / "runs",)
+    except Exception:
+        return ()

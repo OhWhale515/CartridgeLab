@@ -55,39 +55,6 @@ This document tracks active tasks, sprint planning, and work in progress.
 **Status**: ⚪ Not Started
 **Description**: `frontend/src/main.js` — WebGLRenderer, PerspectiveCamera, damped OrbitControls, lighting rig (neon cyan/purple palette).
 **Acceptance Criteria**:
-- [ ] `npm run dev` starts without errors
-- [ ] Lit 3D space renders on load at 60fps
-**Estimated Effort**: Small (1 day)
-
----
-
-#### Frontend: 3D Console Body
-**Status**: ⚪ Not Started
-**Description**: `frontend/src/console.js` — fantasy SNES/PS1 hybrid chassis, neon emissive trim, cartridge slot cavity, breathing power LED.
-**Acceptance Criteria**:
-- [ ] Console geometry visible and lit
-- [ ] Cartridge slot opening visible as recessed cavity
-- [ ] Power LED pulses with breathing animation
-**Estimated Effort**: Medium (2 days)
-
----
-
-#### Frontend: Cartridge Drag-Drop + Insert Animation
-**Status**: ⚪ Not Started
-**Description**: `frontend/src/cartridge.js` — file drop → 3D cartridge model → GSAP float-down insert → click + sound.
-**Acceptance Criteria**:
-- [ ] File drag-drop triggers 3D cartridge model above slot
-- [ ] File type sets cartridge color: `.py`=gold, `.pine`=green, `.mq4`=blue
-- [ ] Insert animation: descend, slot in, screen flash
-- [ ] Sound effect plays
-**Estimated Effort**: Large (3-4 days)
-
----
-
-### Medium Priority
-
-#### Backend: PineScript Adapter
-**Status**: ⚪ Not Started
 **Description**: Regex extraction from PineScript v5 — `ta.sma`, `ta.ema`, `ta.rsi`, `ta.macd`, `ta.bb`, `strategy.entry`, `strategy.close` → generates Backtrader strategy class dynamically.
 **Estimated Effort**: Large (3-4 days)
 
@@ -167,9 +134,10 @@ The task statuses above describe the original scaffold plan and are now partiall
 - Backend: Cerebro Runner -> Implemented baseline runner in `backend/engine/cerebro_runner.py`
 - Backend: Strategy Loader -> Implemented baseline loader and adapters in `backend/engine/strategy_loader.py`
 - Frontend: Three.js Scene Setup -> `frontend/src/main.js` exists and now has the missing dependent modules
+- **[Completed]** Full local smoke test with installed dependencies
+- **[Completed]** Higher-fidelity 3D console, GSAP cartridge animation, and dynamic file type colors implemented
 
 ### Still Open
 
-- Full local smoke test with installed dependencies
-- Higher-fidelity 3D console, cartridge animation, and polished terrain rendering
+- Polished terrain rendering (Chartworld)
 - Stronger metrics depth, sandbox hardening, and adapter test coverage
