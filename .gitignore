@@ -32,6 +32,7 @@ frontend/.npm-cache/
 *.parquet
 backend/cache/
 backend/data/cache/
+backend/data/runs/
 
 # OS
 .DS_Store

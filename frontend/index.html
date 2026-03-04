@@ -94,7 +94,7 @@
           <button id="replay-toggle" class="replay-btn" type="button">PAUSE</button>
           <button id="replay-step" class="replay-btn" type="button">STEP</button>
           <button id="replay-next" class="replay-btn" type="button">NEXT</button>
-          <button id="replay-speed" class="replay-btn" type="button">2X</button>
+          <button id="replay-speed" class="replay-btn" type="button">0.5X</button>
         </div>
       </div>
       <div class="trade-pair-row">
@@ -275,6 +275,40 @@
       </div>
     </div>
 
+    <div id="trade-inspector" class="trade-inspector hidden">
+      <div class="trade-inspector-header">
+        <div>
+          <div class="trade-inspector-kicker">TRADE INSPECTOR</div>
+          <div id="trade-inspector-title" class="trade-inspector-title">No trade selected</div>
+        </div>
+        <div class="trade-inspector-actions">
+          <button id="trade-inspector-prev" class="trade-inspector-btn" type="button">PREV</button>
+          <button id="trade-inspector-next" class="trade-inspector-btn" type="button">NEXT</button>
+        </div>
+      </div>
+      <div id="trade-inspector-summary" class="trade-inspector-summary">Run a backtest to inspect exact trade entries, exits, and outcomes.</div>
+      <div class="trade-inspector-grid">
+        <div class="trade-inspector-cell">
+          <span class="trade-inspector-label">Entry</span>
+          <span id="trade-inspector-entry" class="trade-inspector-value">-</span>
+        </div>
+        <div class="trade-inspector-cell">
+          <span class="trade-inspector-label">Exit</span>
+          <span id="trade-inspector-exit" class="trade-inspector-value">-</span>
+        </div>
+        <div class="trade-inspector-cell">
+          <span class="trade-inspector-label">PnL</span>
+          <span id="trade-inspector-pnl" class="trade-inspector-value">-</span>
+        </div>
+        <div class="trade-inspector-cell">
+          <span class="trade-inspector-label">Bars</span>
+          <span id="trade-inspector-bars" class="trade-inspector-value">-</span>
+        </div>
+      </div>
+      <div id="trade-inspector-reason" class="trade-inspector-reason">Awaiting trade data.</div>
+      <div id="trade-inspector-list" class="trade-inspector-list"></div>
+    </div>
+
     <!-- Run config panel -->
     <div id="run-config" class="run-config hidden">
       <div class="config-title">CONFIGURE RUN</div>
@@ -285,6 +319,7 @@
       <label>START <input id="cfg-start" type="text" value="2020-01-01" /></label>
       <label>END <input id="cfg-end" type="text" value="2023-12-31" /></label>
       <label>CAPITAL <input id="cfg-cash" type="number" value="100000" step="10000" /></label>
+      <label>MARKET DATA CSV <input id="cfg-market-data" type="file" accept=".csv,text/csv" /></label>
       <button id="btn-run" class="btn-run">► PRESS PLAY</button>
     </div>
 

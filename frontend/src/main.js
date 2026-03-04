@@ -11,7 +11,7 @@ import { initHUD, updateHUD } from './hud.js';
 import { initMenu } from './menu.js';
 import { initChartWorld, updateTerrain } from './chartworld.js';
 import { initReplayLane, renderReplayLane } from './replaylane_pixi.js';
-import { fetchIntegrationStatus, runBacktest } from './api.js';
+import { fetchIntegrationStatus, fetchRuns, runBacktest } from './api.js';
 import { playSound } from './sounds.js';
 import brandImage from '../../slimlogobrain.png';
 import gameSplashImage from '../../TradingGame.png';
@@ -24,6 +24,7 @@ const replayState = {
     speed: 0.5,
     step: 0,
     result: null,
+    selectedTradeIndex: -1,
     eventsShown: 0,
     checkpointsShown: 0,
 };
@@ -92,6 +93,7 @@ initCartridgeSystem(onFileDropped);
 initMenuDock();
 initSplashScreen();
 initReplayControls();
+initTradeInspector();
 initConsoleGameDrop();
 initControlSurface();
 
@@ -127,8 +129,9 @@ function showRunConfig(file, preset = null) {
         const start = document.getElementById('cfg-start').value.trim();
         const end = document.getElementById('cfg-end').value.trim();
         const cash = parseFloat(document.getElementById('cfg-cash').value);
+        const marketDataFile = document.getElementById('cfg-market-data')?.files?.[0] || null;
         panel.classList.add('hidden');
-        await runWith(file, preset?.name || null, ticker, start, end, cash);
+        await runWith(file, preset?.name || null, ticker, start, end, cash, marketDataFile);
     };
 }
 
@@ -140,6 +143,7 @@ function applyRunConfigPreset(file, preset) {
     const startInput = document.getElementById('cfg-start');
     const endInput = document.getElementById('cfg-end');
     const cashInput = document.getElementById('cfg-cash');
+    const marketDataInput = document.getElementById('cfg-market-data');
 
     if (preset) {
         nameNode.textContent = preset.title || preset.name;
@@ -160,6 +164,9 @@ function applyRunConfigPreset(file, preset) {
             endInput.value = preset.defaults.end || endInput.value;
             cashInput.value = String(preset.defaults.cash || cashInput.value);
         }
+        if (marketDataInput) {
+            marketDataInput.value = '';
+        }
         return;
     }
 
@@ -167,9 +174,12 @@ function applyRunConfigPreset(file, preset) {
     themeNode.textContent = 'Custom file';
     themeNode.classList.remove('hidden');
     blurbNode.textContent = 'Manual mode: choose the ticker, date range, and capital for this cartridge run.';
+    if (marketDataInput) {
+        marketDataInput.value = '';
+    }
 }
 
-async function runWith(file, presetFilename, ticker, start, end, cash) {
+async function runWith(file, presetFilename, ticker, start, end, cash, marketDataFile = null) {
     await playInsertTransition(presetFilename || file?.name || 'Custom cartridge');
     showLoading(true, 'Initializing Cerebro...');
     setHudStage('Running simulation');
@@ -178,7 +188,7 @@ async function runWith(file, presetFilename, ticker, start, end, cash) {
     playSound('running');
 
     try {
-        const result = await runBacktest(file, presetFilename, ticker, start, end, cash);
+        const result = await runBacktest(file, presetFilename, ticker, start, end, cash, marketDataFile);
         showLoading(false);
         hideLaunchTransition();
         setGameShellActive(true);
@@ -377,6 +387,7 @@ function setGameShellActive(active) {
         document.getElementById('strategy-badge')?.classList.add('hidden');
         document.getElementById('hud')?.classList.add('hidden');
         document.getElementById('replay-panel')?.classList.add('hidden');
+        document.getElementById('trade-inspector')?.classList.add('hidden');
     }
 }
 
@@ -481,6 +492,10 @@ function initControlSurface() {
                 speedButton.textContent = `${replayState.speed}X`;
             }
             openSystemPanel('fx');
+            return;
+        }
+        if (mode === 'leaderboard' || mode === 'trade') {
+            await openSystemPanel(mode);
             return;
         }
         closeSystemPanel();
@@ -588,6 +603,42 @@ async function openSystemPanel(mode) {
         } catch (error) {
             meta.textContent = `Integration status unavailable.\n${error.message}`;
         }
+        return;
+    }
+
+    if (mode === 'trade' && replayState.result?.run_id) {
+        meta.textContent = [
+            `RUN ID: ${replayState.result.run_id}`,
+            `STRATEGY: ${replayState.result.strategy_name || 'unknown'}`,
+            `PAIR: ${replayState.result.ticker || 'n/a'}`,
+            `RETURN: ${Number(replayState.result.total_return || 0).toFixed(2)}%`,
+        ].join('\n');
+        return;
+    }
+
+    if (mode === 'leaderboard') {
+        body.textContent = 'Loading stored backtest runs from the platform archive...';
+        meta.textContent = 'Reading saved runs...';
+        primary.textContent = 'REFRESH';
+        try {
+            const runs = await fetchRuns(8);
+            if (!runs.length) {
+                body.textContent = 'No saved runs yet. Complete a backtest and it will be archived automatically.';
+                meta.textContent = 'Archive is empty.';
+                return;
+            }
+
+            body.textContent = 'Recent archived runs are now persisted with run IDs so they can be inspected and ranked.';
+            meta.textContent = runs.map((run, index) => {
+                const strategy = run.strategy_name || 'Unknown';
+                const ticker = run.ticker || 'n/a';
+                const ret = Number(run.total_return || 0).toFixed(2);
+                const dd = Number(run.max_drawdown || 0).toFixed(2);
+                return `${index + 1}. ${strategy} | ${ticker} | ${ret}% | DD ${dd}% | ${run.run_id}`;
+            }).join('\n');
+        } catch (error) {
+            meta.textContent = `Run archive unavailable.\n${error.message}`;
+        }
     }
 }
 
@@ -685,12 +736,22 @@ function initReplayControls() {
     }
 }
 
+function initTradeInspector() {
+    document.getElementById('trade-inspector-prev')?.addEventListener('click', () => {
+        selectTradeByIndex(replayState.selectedTradeIndex - 1, true);
+    });
+    document.getElementById('trade-inspector-next')?.addEventListener('click', () => {
+        selectTradeByIndex(replayState.selectedTradeIndex + 1, true);
+    });
+}
+
 function replayDelayForSpeed() {
     return Math.max(45, Math.round(180 / Math.max(replayState.speed || 1, 0.25)));
 }
 
 function startReplay(result, ticker, start, end) {
     replayState.result = result;
+    replayState.selectedTradeIndex = -1;
     replayState.step = 0;
     replayState.eventsShown = 0;
     replayState.checkpointsShown = 0;
@@ -706,6 +767,7 @@ function startReplay(result, ticker, start, end) {
     setHeroIdle(false);
     setConsolePrompt('SIMULATION LIVE', `${result.strategy_name} is now running on ${ticker}.`);
     initializeMarketStage(result, ticker);
+    initializeTradeInspector(result);
     updateTradeTelemetry(result, ticker, 0);
     appendChatMessage(`System: ${result.strategy_name} deployed on ${ticker}.`);
     setReplayStatus(replayStatusForCurrentStep());
@@ -754,6 +816,7 @@ function finishReplay(result, ticker, start, end) {
 
     updateMarketStageFrame(result, (result.price_bars || []).length || replayState.step);
     updateTradeTelemetry(result, ticker, (result.price_bars || []).length || replayState.step);
+    syncTradeInspectorToReplay();
     setReplayStatus(buildReplayOutcome(result));
     setConsolePrompt('RUN COMPLETE', buildReplayOutcome(result));
     appendChatMessage(`System: ${buildReplayOutcome(result)}`);
@@ -765,6 +828,7 @@ function resetReplay() {
     replayState.step = 0;
     replayState.eventsShown = 0;
     replayState.checkpointsShown = 0;
+    replayState.selectedTradeIndex = -1;
     replayState.result = null;
     replayState.paused = false;
     setConsolePrompt('SYSTEM READY', 'Select a cartridge to begin.');
@@ -780,6 +844,7 @@ function resetReplay() {
     if (panel) {
         panel.classList.add('hidden');
     }
+    document.getElementById('trade-inspector')?.classList.add('hidden');
 }
 
 function getReplayTotalSteps() {
@@ -806,6 +871,7 @@ function advanceReplayBy(amount, tickerHint = null) {
     const ticker = tickerHint || document.getElementById('trade-pair')?.textContent || 'SPY';
     updateMarketStageFrame(replayState.result, replayState.step);
     updateTradeTelemetry(replayState.result, ticker, replayState.step);
+    syncTradeInspectorToReplay();
     appendReplayEvents(replayState.result);
     maybeShowCheckpoint();
     setReplayStatus(replayStatusForCurrentStep());
@@ -885,6 +951,169 @@ function clearReplayTimer() {
     }
 }
 
+function initializeTradeInspector(result) {
+    const panel = document.getElementById('trade-inspector');
+    const list = document.getElementById('trade-inspector-list');
+    if (!panel || !list) {
+        return;
+    }
+
+    const trades = result?.trades || [];
+    panel.classList.toggle('hidden', !trades.length);
+    list.innerHTML = '';
+
+    trades.forEach((trade, index) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'trade-inspector-chip';
+        chip.textContent = buildTradeChipLabel(trade, index);
+        chip.addEventListener('click', () => {
+            selectTradeByIndex(index, true);
+        });
+        list.appendChild(chip);
+    });
+
+    if (trades.length) {
+        selectTradeByIndex(0, false);
+    }
+}
+
+function syncTradeInspectorToReplay() {
+    const result = replayState.result;
+    if (!result?.trades?.length) {
+        return;
+    }
+
+    const currentBar = Math.max(replayState.step - 1, 0);
+    const activeTrade = currentTradeWindow(result.replay_events || [], currentBar);
+    if (activeTrade?.trade_index) {
+        selectTradeByIndex(activeTrade.trade_index - 1, false);
+        return;
+    }
+
+    const closedEvents = (result.replay_events || []).filter((event) =>
+        (event.type === 'sell' || event.type === 'damage') && (event.bar_index ?? 0) <= currentBar
+    );
+    if (closedEvents.length) {
+        const latest = closedEvents[closedEvents.length - 1];
+        selectTradeByIndex((latest.trade_index || 1) - 1, false);
+    }
+}
+
+function selectTradeByIndex(index, jumpToTrade) {
+    const result = replayState.result;
+    const trades = result?.trades || [];
+    if (!trades.length) {
+        return;
+    }
+
+    const safeIndex = Math.max(0, Math.min(index, trades.length - 1));
+    replayState.selectedTradeIndex = safeIndex;
+    renderTradeInspector(result, safeIndex);
+
+    if (jumpToTrade) {
+        focusTradeInReplay(result, safeIndex);
+    }
+}
+
+function renderTradeInspector(result, index) {
+    const trade = result?.trades?.[index];
+    const panel = document.getElementById('trade-inspector');
+    if (!trade || !panel) {
+        return;
+    }
+
+    panel.classList.remove('hidden');
+
+    const tradeNo = index + 1;
+    const pnl = Number(trade.pnl ?? 0);
+    const detail = tradeDetails(result, tradeNo);
+    const entry = Number(detail.entry_price || trade.entry_price || 0);
+    const exit = Number(detail.exit_price || trade.exit_price || 0);
+    const bars = Number(detail.span_bars ?? trade.bar_len ?? 0);
+    const outcome = pnl >= 0 ? 'Profit' : 'Risk';
+
+    setText('trade-inspector-title', `Trade ${tradeNo} | ${outcome}`);
+    setText('trade-inspector-summary', `${outcome} outcome | Opened ${formatIsoShort(trade.opened_at)} | Closed ${formatIsoShort(trade.closed_at)}`);
+    setText('trade-inspector-entry', entry ? entry.toFixed(2) : 'n/a');
+    setText('trade-inspector-exit', exit ? exit.toFixed(2) : 'n/a');
+    setText('trade-inspector-pnl', `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`);
+    setText('trade-inspector-bars', String(bars || 0));
+    setText('trade-inspector-reason', detail.reason || 'Trade completed without a recorded explanation.');
+
+    document.querySelectorAll('.trade-inspector-chip').forEach((chip, chipIndex) => {
+        chip.classList.toggle('is-active', chipIndex === index);
+    });
+    document.querySelectorAll('.replay-entry[data-trade-index]').forEach((node) => {
+        node.classList.toggle('is-active', Number(node.dataset.tradeIndex) === tradeNo);
+    });
+
+    const prev = document.getElementById('trade-inspector-prev');
+    const next = document.getElementById('trade-inspector-next');
+    if (prev) {
+        prev.disabled = index <= 0;
+    }
+    if (next) {
+        next.disabled = index >= (result.trades.length - 1);
+    }
+}
+
+function tradeDetails(result, tradeIndex) {
+    const events = result?.replay_events || [];
+    const entry = events.find((event) => event.trade_index === tradeIndex && (event.type === 'buy' || event.type === 'engage'));
+    const exit = events.find((event) => event.trade_index === tradeIndex && (event.type === 'sell' || event.type === 'damage'));
+
+    return {
+        entry_event: entry || null,
+        exit_event: exit || null,
+        entry_price: entry?.entry_price || exit?.entry_price || 0,
+        exit_price: exit?.exit_price || entry?.exit_price || 0,
+        span_bars: exit?.span_bars ?? entry?.span_bars ?? 0,
+        reason: exit?.reason || entry?.reason || '',
+        entry_bar: entry?.bar_index ?? 0,
+    };
+}
+
+function focusTradeInReplay(result, index) {
+    const detail = tradeDetails(result, index + 1);
+    const targetStep = Math.max(1, (detail.entry_bar || 0) + 1);
+    replayState.paused = true;
+    document.getElementById('replay-toggle').textContent = 'PLAY';
+    if (targetStep === replayState.step) {
+        updateMarketStageFrame(result, replayState.step);
+        syncTradeInspectorToReplay();
+        return;
+    }
+    if (targetStep < replayState.step) {
+        replayState.step = 0;
+        replayState.eventsShown = 0;
+        replayState.checkpointsShown = 0;
+        const log = document.getElementById('replay-log');
+        if (log) {
+            log.innerHTML = '';
+        }
+        advanceReplayBy(targetStep, document.getElementById('trade-pair')?.textContent || 'SPY');
+        return;
+    }
+    advanceReplayBy(Math.max(targetStep - replayState.step, 1), document.getElementById('trade-pair')?.textContent || 'SPY');
+}
+
+function buildTradeChipLabel(trade, index) {
+    const pnl = Number(trade?.pnl ?? 0);
+    return `T${index + 1} ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
+}
+
+function formatIsoShort(value) {
+    if (!value) {
+        return 'n/a';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return 'n/a';
+    }
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
 function appendReplayEvents(result) {
     const log = document.getElementById('replay-log');
     if (!log) {
@@ -898,6 +1127,13 @@ function appendReplayEvents(result) {
         const event = events[replayState.eventsShown];
         const node = document.createElement('div');
         node.className = 'replay-entry';
+        if (event?.trade_index) {
+            node.classList.add('is-linked');
+            node.dataset.tradeIndex = String(event.trade_index);
+            node.addEventListener('click', () => {
+                selectTradeByIndex((event.trade_index || 1) - 1, true);
+            });
+        }
         node.textContent = replayEventText(event);
         log.prepend(node);
         if (event?.type && event.type !== 'scan') {

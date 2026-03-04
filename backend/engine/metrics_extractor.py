@@ -78,7 +78,8 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
 
     # --- Equity Curve (reconstructed from price data + broker value tracking) ---
     equity_curve = _build_equity_curve(strat, price_data, starting_cash)
-    trades = _extract_trade_log(strat)
+    order_ledger = _extract_order_log(strat)
+    trades = _extract_trade_log(strat, order_ledger)
     price_bars = _build_price_bars(price_data)
     replay_events = _build_replay_events(price_bars, trades)
 
@@ -103,6 +104,7 @@ def extract_metrics(strat, starting_cash: float, final_value: float, price_data=
         "gross_loss": round(gross_loss, 2),
         "annual_return": annual_return,
         "equity_curve": equity_curve,
+        "order_ledger": order_ledger,
         "trades": trades,
         "price_bars": price_bars,
         "replay_events": replay_events,
@@ -128,10 +130,18 @@ def _build_equity_curve(strat, price_data, starting_cash: float) -> list:
     return []
 
 
-def _extract_trade_log(strat) -> list:
-    """Return analyzer-captured closed trades, or an empty list."""
+def _extract_trade_log(strat, order_ledger=None) -> list:
+    """Return analyzer-captured closed trades enriched with matching fills."""
     try:
-        return strat.analyzers.tradelog.get_analysis()
+        return _enrich_trade_log(strat.analyzers.tradelog.get_analysis(), order_ledger or [])
+    except Exception:
+        return []
+
+
+def _extract_order_log(strat) -> list:
+    """Return full order lifecycle notifications, or an empty list."""
+    try:
+        return strat.analyzers.orderledger.get_analysis()
     except Exception:
         return []
 
@@ -160,6 +170,46 @@ def _build_price_bars(price_data) -> list:
         return bars
     except Exception:
         return []
+
+
+def _enrich_trade_log(trades: list, order_ledger: list) -> list:
+    """Attach entry/exit fill details from the order ledger to each closed trade."""
+    if not trades:
+        return []
+
+    fills = [
+        order for order in order_ledger
+        if order.get('status') in {'completed', 'partial'} and abs(float(order.get('executed_size') or 0.0)) > 0
+    ]
+    fills.sort(key=lambda item: item.get('executed_at') or '')
+
+    enriched = []
+    for trade in trades:
+        opened_at = trade.get('opened_at')
+        closed_at = trade.get('closed_at')
+        matching = [
+            fill for fill in fills
+            if _between(fill.get('executed_at'), opened_at, closed_at)
+        ]
+        if not matching:
+            matching = _nearest_fills(fills, opened_at, closed_at)
+
+        entry_fill = matching[0] if matching else None
+        exit_fill = matching[-1] if matching else None
+        record = dict(trade)
+        if entry_fill:
+            record['entry_price'] = _safe_price(entry_fill.get('executed_price'))
+            record['entry_order_ref'] = entry_fill.get('ref')
+            record['entry_order_type'] = entry_fill.get('order_type')
+            record['entry_side'] = entry_fill.get('side')
+        if exit_fill:
+            record['exit_price'] = _safe_price(exit_fill.get('executed_price'))
+            record['exit_order_ref'] = exit_fill.get('ref')
+            record['exit_order_type'] = exit_fill.get('order_type')
+            record['exit_side'] = exit_fill.get('side')
+        enriched.append(record)
+
+    return enriched
 
 
 def _build_replay_events(price_bars: list, trades: list) -> list:
@@ -194,6 +244,10 @@ def _build_replay_events(price_bars: list, trades: list) -> list:
             trade.get("price_out"),
         )
         span_bars = max(close_bar_index - open_bar_index, 0)
+        if not entry_price and 0 <= open_bar_index < len(price_bars):
+            entry_price = _safe_price(price_bars[open_bar_index].get("close"))
+        if not exit_price and 0 <= close_bar_index < len(price_bars):
+            exit_price = _safe_price(price_bars[close_bar_index].get("close"))
 
         events.append({
             "type": "buy" if profitable else "engage",
@@ -249,6 +303,39 @@ def _nearest_bar_index(bar_timestamps: list, target_ts: int) -> int:
             nearest_distance = distance
             nearest_index = index
     return nearest_index
+
+
+def _between(candidate_iso, opened_iso, closed_iso) -> bool:
+    candidate = _to_timestamp_ms(candidate_iso)
+    opened = _to_timestamp_ms(opened_iso)
+    closed = _to_timestamp_ms(closed_iso)
+    if not candidate:
+        return False
+    if opened and candidate < opened:
+        return False
+    if closed and candidate > closed:
+        return False
+    return True
+
+
+def _nearest_fills(fills: list, opened_iso, closed_iso) -> list:
+    opened = _to_timestamp_ms(opened_iso)
+    closed = _to_timestamp_ms(closed_iso)
+    if not fills:
+        return []
+
+    ranked = sorted(
+        fills,
+        key=lambda fill: (
+            abs((_to_timestamp_ms(fill.get('executed_at')) or 0) - opened),
+            abs((_to_timestamp_ms(fill.get('executed_at')) or 0) - closed),
+        ),
+    )
+    if not ranked:
+        return []
+    if len(ranked) == 1:
+        return [ranked[0]]
+    return sorted(ranked[:2], key=lambda fill: fill.get('executed_at') or '')
 
 
 def _approx_sortino(sharpe: float) -> float:

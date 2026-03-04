@@ -10,7 +10,8 @@ configure_local_vendor()
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from engine.cerebro_runner import run_backtest
+from engine.backtest_engine import run_backtest
+from engine.run_store import load_run_record, list_run_records, persist_run_record
 from engine.strategy_loader import load_strategy
 
 app = Flask(__name__)
@@ -195,6 +196,31 @@ def tradingview_webhook():
     }), 202
 
 
+@app.route('/api/runs', methods=['GET'])
+def list_runs():
+    try:
+        limit = int(request.args.get('limit', 20))
+    except (TypeError, ValueError):
+        limit = 20
+
+    return jsonify({
+        "status": "ok",
+        "runs": list_run_records(limit=limit),
+    })
+
+
+@app.route('/api/runs/<run_id>', methods=['GET'])
+def get_run(run_id: str):
+    record = load_run_record(run_id)
+    if not record:
+        return jsonify({"status": "error", "message": "Run not found"}), 404
+
+    return jsonify({
+        "status": "ok",
+        "run": record,
+    })
+
+
 @app.route('/api/run', methods=['POST'])
 def run():
     """
@@ -230,12 +256,34 @@ def run():
     if file_ext not in SUPPORTED_EXTENSIONS:
         return jsonify({"status": "error", "message": f"Unsupported cartridge type: {file_ext or 'unknown'}"}), 400
 
+    market_data_file = request.files.get('market_data')
+    market_data_bytes = None
+    market_data_name = None
+    if market_data_file and market_data_file.filename:
+        market_data_bytes = market_data_file.read()
+        market_data_name = market_data_file.filename
+
     try:
         strategy_class, strategy_name, file_type = load_strategy(file_content, file_ext, file.filename)
-        results = run_backtest(strategy_class, ticker, start, end, cash)
+        results = run_backtest(
+            strategy_class,
+            ticker,
+            start,
+            end,
+            cash,
+            market_data_bytes=market_data_bytes,
+            market_data_name=market_data_name,
+        )
         results['strategy_name'] = strategy_name
         results['file_type'] = file_type
         results['status'] = 'success'
+        results['ticker'] = ticker
+        results['start'] = start
+        results['end'] = end
+        results['cash'] = cash
+        results['source_file'] = file.filename
+        results['market_data_file'] = market_data_name
+        results = persist_run_record(results)
         return jsonify(results)
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400

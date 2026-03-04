@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 /**
  * Run a backtest. Accepts either a File object (user upload) or a preset filename (sample cartridge).
  */
-export async function runBacktest(file, presetFilename, ticker, start, end, cash) {
+export async function runBacktest(file, presetFilename, ticker, start, end, cash, marketDataFile = null) {
     const formData = new FormData();
 
     if (file) {
@@ -27,6 +27,9 @@ export async function runBacktest(file, presetFilename, ticker, start, end, cash
     formData.append('start', start);
     formData.append('end', end);
     formData.append('cash', cash.toString());
+    if (marketDataFile) {
+        formData.append('market_data', marketDataFile);
+    }
 
     const response = await fetch(`${API_BASE}/run`, {
         method: 'POST',
@@ -64,4 +67,18 @@ export async function fetchIntegrationStatus() {
     const resp = await fetch(`${API_BASE}/integrations/status`);
     if (!resp.ok) throw new Error('Could not fetch integration status');
     return resp.json();
+}
+
+export async function fetchRuns(limit = 12) {
+    const resp = await fetch(`${API_BASE}/runs?limit=${encodeURIComponent(limit)}`);
+    if (!resp.ok) throw new Error('Could not fetch saved runs');
+    const data = await resp.json();
+    return data.runs || [];
+}
+
+export async function fetchRunRecord(runId) {
+    const resp = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}`);
+    if (!resp.ok) throw new Error('Could not fetch run record');
+    const data = await resp.json();
+    return data.run;
 }
