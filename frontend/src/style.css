@@ -369,6 +369,10 @@ body {
   z-index: 100;
 }
 
+body.use-shader-crt #app::before {
+  opacity: 0.18;
+}
+
 /* CRT vignette */
 #app::after {
   content: '';
@@ -377,6 +381,10 @@ body {
   background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.75) 100%);
   pointer-events: none;
   z-index: 101;
+}
+
+body.use-shader-crt #app::after {
+  opacity: 0.22;
 }
 
 /* ── Drop Zone ── */

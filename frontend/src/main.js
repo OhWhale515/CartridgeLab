@@ -15,6 +15,7 @@ import { initReplayLane, renderReplayLane } from './replaylane_pixi.js';
 import { fetchIntegrationStatus, fetchRuns, runBacktest } from './api.js';
 import { playSound, sonifyEquityCurve, stopSonification, isSonifying } from './sounds.js';
 import { initWeather, updateWeather, setWeatherRegime, detectRegimeFromEquity } from './weather.js';
+import { initPostProcessing } from './postprocessing.js';
 import { shouldShowAutopsy, generateAutopsyData, showAutopsyOverlay, removeAutopsyOverlay } from './autopsy.js';
 import { checkAchievements } from './achievements.js';
 import { recordRun, getCartridgeWear } from './cartridge_history.js';
@@ -68,6 +69,9 @@ controls.dampingFactor = 0.08;
 controls.minDistance = 3;
 controls.maxDistance = 25;
 controls.maxPolarAngle = Math.PI * 0.75;
+
+const postFx = initPostProcessing(renderer, scene, camera);
+document.body.classList.add('use-shader-crt');
 
 // ─── Lighting — Neon Console Aesthetic ───────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0x110022, 1.5);
@@ -2027,6 +2031,7 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    postFx.resize(window.innerWidth, window.innerHeight);
 });
 
 // ─── Animation Loop ───────────────────────────────────────────────────────────
@@ -2043,7 +2048,7 @@ function animate() {
     updateConsoleScene(elapsed);
     updateWeather(elapsed, delta);
 
-    renderer.render(scene, camera);
+    postFx.render(elapsed);
 }
 
 animate();
